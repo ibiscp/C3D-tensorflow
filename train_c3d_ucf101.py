@@ -116,6 +116,7 @@ def run_training():
   use_pretrained_model = True
   model_filename = "model/sports1m_finetuning_ucf101.model"
 
+  # with tf.name_scope('c3d'):
   with tf.Graph().as_default():
     global_step = tf.get_variable(
                     'global_step',
@@ -194,15 +195,32 @@ def run_training():
     train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
     null_op = tf.no_op()
 
+    # TODO Change this
+    # Restore all the layers excluding the last one
+    variables_exclude = ['var_name/wout', 'var_name/bout', 'global_step:0']
+    variables_to_restore = tf.contrib.framework.get_variables_to_restore(exclude=variables_exclude)
+    init_fn = tf.contrib.framework.assign_from_checkpoint_fn(model_filename, variables_to_restore)
+
+    # TODO Change this
+    # Initialization operation from scratch for the new output layer
+    fout_variables = tf.contrib.framework.get_variables_by_suffix('out')
+    fc8_init = tf.variables_initializer(fout_variables)
+
     # Create a saver for writing training checkpoints.
     saver = tf.train.Saver()
-    init = tf.global_variables_initializer()
+    # init = tf.global_variables_initializer()
 
     # Create a session for running Ops on the Graph.
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-    sess.run(init)
+    # sess.run(init)
+    # TODO Change this
+    init_fn(sess)  # load the pretrained weights
+
     if os.path.isfile(model_filename) and use_pretrained_model:
       saver.restore(sess, model_filename)
+
+    # TODO Change this
+    sess.run(fc8_init)  # initialize the new fc8 layer
 
     # Create summary writter
     merged = tf.summary.merge_all()

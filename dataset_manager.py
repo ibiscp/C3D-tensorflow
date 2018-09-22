@@ -8,7 +8,7 @@ import sys
 from numpy import *
 from os.path import dirname, realpath
 import PoseEstimation
-import pose_list
+import activities
 import tensorflow as tf
 
 dir_path = dirname(realpath(__file__))
@@ -22,7 +22,7 @@ json_path = 'json/'
 video_path = 'videos/'
 
 # Create list of activities and IDs
-activities_ids = pose_list.generate_activity_list()
+activities_ids = activities.activities_ids
 
 def get_frames(video_path, frames_per_step, segment, im_size, sess):
     #load video and acquire its parameters usingopencv

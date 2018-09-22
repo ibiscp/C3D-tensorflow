@@ -39,7 +39,6 @@ def compute_pose_frame(input_image, sess):
         variables = tf.contrib.slim.get_variables_to_restore()
 
         var_list = [v for v in variables if v.name.split(':')[0] in var_rest]
-        print(var_list)
 
         loader = tf.train.Saver(var_list=var_list)
         loader.restore(sess, ckpts)
