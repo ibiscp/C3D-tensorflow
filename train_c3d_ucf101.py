@@ -20,7 +20,7 @@ import time
 import numpy
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-import input_data
+import dataset_manager as input_data
 import c3d_model
 import math
 import numpy as np
@@ -85,7 +85,7 @@ def tower_loss(name_scope, logit, labels):
   tf.summary.scalar(name_scope + '_weight_decay_loss', tf.reduce_mean(weight_decay_loss) )
 
   # Calculate the total loss for the current tower.
-  total_loss = cross_entropy_mean + weight_decay_loss 
+  total_loss = cross_entropy_mean + weight_decay_loss
   tf.summary.scalar(name_scope + '_total_loss', tf.reduce_mean(total_loss) )
   return total_loss
 
@@ -113,8 +113,8 @@ def run_training():
   # Create model directory
   if not os.path.exists(model_save_dir):
       os.makedirs(model_save_dir)
-  use_pretrained_model = True 
-  model_filename = "./sports1m_finetuning_ucf101.model"
+  use_pretrained_model = True
+  model_filename = "model/sports1m_finetuning_ucf101.model"
 
   with tf.Graph().as_default():
     global_step = tf.get_variable(
@@ -160,9 +160,9 @@ def run_training():
               }
     for gpu_index in range(0, gpu_num):
       with tf.device('/gpu:%d' % gpu_index):
-        
+
         varlist2 = [ weights['out'],biases['out'] ]
-        varlist1 = list( set(weights.values() + biases.values()) - set(varlist2) )
+        varlist1 = list((set(weights.values()) | set(biases.values())) - set(varlist2))
         logit = c3d_model.inference_c3d(
                         images_placeholder[gpu_index * FLAGS.batch_size:(gpu_index + 1) * FLAGS.batch_size,:,:,:,:],
                         0.5,
@@ -181,6 +181,7 @@ def run_training():
         tower_grads1.append(grads1)
         tower_grads2.append(grads2)
         logits.append(logit)
+
     logits = tf.concat(logits,0)
     accuracy = tower_acc(logits, labels_placeholder)
     tf.summary.scalar('accuracy', accuracy)
@@ -194,13 +195,11 @@ def run_training():
     null_op = tf.no_op()
 
     # Create a saver for writing training checkpoints.
-    saver = tf.train.Saver(weights.values() + biases.values())
+    saver = tf.train.Saver()
     init = tf.global_variables_initializer()
 
     # Create a session for running Ops on the Graph.
-    sess = tf.Session(
-                    config=tf.ConfigProto(allow_soft_placement=True)
-                    )
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
     sess.run(init)
     if os.path.isfile(model_filename) and use_pretrained_model:
       saver.restore(sess, model_filename)
@@ -211,13 +210,11 @@ def run_training():
     test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
-      train_images, train_labels, _, _, _ = input_data.read_clip_and_label(
-                      filename='list/train.list',
-                      batch_size=FLAGS.batch_size * gpu_num,
-                      num_frames_per_clip=c3d_model.NUM_FRAMES_PER_CLIP,
-                      crop_size=c3d_model.CROP_SIZE,
-                      shuffle=True
-                      )
+      train_images, train_labels = input_data.read_clip_and_label(
+                      Batch_size=FLAGS.batch_size * gpu_num,
+                      frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
+                      im_size=c3d_model.CROP_SIZE,
+                      sess = sess)
       sess.run(train_op, feed_dict={
                       images_placeholder: train_images,
                       labels_placeholder: train_labels
@@ -237,13 +234,12 @@ def run_training():
         print ("accuracy: " + "{:.5f}".format(acc))
         train_writer.add_summary(summary, step)
         print('Validation Data Eval:')
-        val_images, val_labels, _, _, _ = input_data.read_clip_and_label(
-                        filename='list/test.list',
-                        batch_size=FLAGS.batch_size * gpu_num,
-                        num_frames_per_clip=c3d_model.NUM_FRAMES_PER_CLIP,
-                        crop_size=c3d_model.CROP_SIZE,
-                        shuffle=True
-                        )
+        val_images, val_labels = input_data.read_clip_and_label(
+                         Batch_size=FLAGS.batch_size * gpu_num,
+                         frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
+                         im_size=c3d_model.CROP_SIZE,
+                         sess = sess,
+                         test = True)
         summary, acc = sess.run(
                         [merged, accuracy],
                         feed_dict={
