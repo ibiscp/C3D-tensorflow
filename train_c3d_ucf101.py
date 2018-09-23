@@ -27,7 +27,7 @@ import numpy as np
 
 # Basic model parameters as external flags.
 flags = tf.app.flags
-gpu_num = 2
+gpu_num = 1
 #flags.DEFINE_float('learning_rate', 0.0, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 5000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 10, 'Batch size.')
@@ -116,8 +116,8 @@ def run_training():
   use_pretrained_model = True
   model_filename = "model/sports1m_finetuning_ucf101.model"
 
-  # with tf.name_scope('c3d'):
-  with tf.Graph().as_default():
+  with tf.name_scope('c3d'):
+    #with tf.Graph().as_default():
     global_step = tf.get_variable(
                     'global_step',
                     [],
@@ -159,6 +159,7 @@ def run_training():
               'bd2': _variable_with_weight_decay('bd2', [4096], 0.000),
               'out': _variable_with_weight_decay('bout', [c3d_model.NUM_CLASSES], 0.000),
               }
+
     for gpu_index in range(0, gpu_num):
       with tf.device('/gpu:%d' % gpu_index):
 
@@ -192,35 +193,39 @@ def run_training():
     apply_gradient_op2 = opt_finetuning.apply_gradients(grads2, global_step=global_step)
     variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY)
     variables_averages_op = variable_averages.apply(tf.trainable_variables())
-    train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
+
+    last_layer_train_op = tf.group(apply_gradient_op2, variables_averages_op)
+    full_train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
+
     null_op = tf.no_op()
 
-    # TODO Change this
+    # # List variables in checkpoint
+    # var_list = tf.train.list_variables(model_filename)
+    # for v in var_list:
+    #     print(v)
+
     # Restore all the layers excluding the last one
-    variables_exclude = ['var_name/wout', 'var_name/bout', 'global_step:0']
-    variables_to_restore = tf.contrib.framework.get_variables_to_restore(exclude=variables_exclude)
+    variables_exclude = ['var_name/wout', 'var_name/bout']#, 'global_step:0']
+    variables_include = [v.name for v in tf.trainable_variables(scope='var_name')]
+    variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=variables_include, exclude=variables_exclude)
     init_fn = tf.contrib.framework.assign_from_checkpoint_fn(model_filename, variables_to_restore)
 
-    # TODO Change this
     # Initialization operation from scratch for the new output layer
     fout_variables = tf.contrib.framework.get_variables_by_suffix('out')
     fc8_init = tf.variables_initializer(fout_variables)
 
-    # Create a saver for writing training checkpoints.
-    saver = tf.train.Saver()
-    # init = tf.global_variables_initializer()
+    # # Create a saver for writing training checkpoints.
+    saver_variables = tf.trainable_variables(scope='var_name')
+    saver = tf.train.Saver(saver_variables)
 
     # Create a session for running Ops on the Graph.
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-    # sess.run(init)
-    # TODO Change this
-    init_fn(sess)  # load the pretrained weights
 
-    if os.path.isfile(model_filename) and use_pretrained_model:
-      saver.restore(sess, model_filename)
+    # load the pretrained weights
+    init_fn(sess)
 
-    # TODO Change this
-    sess.run(fc8_init)  # initialize the new fc8 layer
+    # initialize the weights
+    sess.run(fc8_init)
 
     # Create summary writter
     merged = tf.summary.merge_all()
@@ -233,10 +238,18 @@ def run_training():
                       frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
                       im_size=c3d_model.CROP_SIZE,
                       sess = sess)
-      sess.run(train_op, feed_dict={
-                      images_placeholder: train_images,
-                      labels_placeholder: train_labels
-                      })
+
+      # Train last layer and finetunning
+      if step < 100:
+          sess.run(last_layer_train_op, feed_dict={
+                          images_placeholder: train_images,
+                          labels_placeholder: train_labels
+                          })
+      else:
+          sess.run(full_train_op, feed_dict={
+                          images_placeholder: train_images,
+                          labels_placeholder: train_labels
+                          })
       duration = time.time() - start_time
       print('Step %d: %.3f sec' % (step, duration))
 

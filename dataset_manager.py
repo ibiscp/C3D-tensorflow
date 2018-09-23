@@ -7,15 +7,12 @@ import pprint
 import sys
 from numpy import *
 from os.path import dirname, realpath
-import PoseEstimation
 import activities
 import tensorflow as tf
 
-dir_path = dirname(realpath(__file__))
-print('dir_path: ' + dir_path)
-libs_dir_path = dir_path+ '/openpose'
-print('libs_dir_path: ' + libs_dir_path)
-sys.path.append('libs_dir_path' + libs_dir_path)
+# Add openpose to the path and import PoseEstimation
+sys.path.append('./openpose')
+import PoseEstimation
 
 # Paths
 json_path = 'json/'

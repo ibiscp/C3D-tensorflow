@@ -26,7 +26,6 @@ def compute_pose_frame(input_image, sess):
 
     if first_time:
         #load pretrained weights
-        print(first_time)
         s = '%dx%d' % (input_node.shape[2], input_node.shape[1])
         ckpts = path + '/openpose/models/trained/mobilenet_' + s + '/model-release'
 
@@ -40,7 +39,7 @@ def compute_pose_frame(input_image, sess):
 
         var_list = [v for v in variables if v.name.split(':')[0] in var_rest]
 
-        loader = tf.train.Saver(var_list=var_list)
+        loader = tf.train.Saver(var_list)
         loader.restore(sess, ckpts)
 
         first_time = False

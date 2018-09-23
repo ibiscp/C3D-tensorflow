@@ -21,9 +21,10 @@ forward to make predictions.
 """
 
 import tensorflow as tf
+import activities
 
-# The UCF-101 dataset has 101 classes
-NUM_CLASSES = 101
+# Define number of classes
+NUM_CLASSES = len(activities.activities_ids)
 
 # Images are cropped to (CROP_SIZE, CROP_SIZE)
 CROP_SIZE = 112
