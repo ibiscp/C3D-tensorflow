@@ -32,6 +32,10 @@ def get_frames(video_path, frames_per_step, segment, im_size, sess):
     # check segment consistency
     if (max_len < segment[1]):
         segment[1] = max_len
+        print('Error: final segment out of the video!')
+    if (max_len < segment[0]):
+        segment[0] = max_len - frames_per_step
+        print('Error: initial segment out of the video!')
 
     #define start frame
     central_frame = (np.linspace(segment[0], segment[1], num=3)) / 1000 * fps
@@ -62,12 +66,15 @@ def read_clip_and_label(Batch_size, frames_per_step, im_size, sess, test=False):
         dataset = 'dataset_training.json'
 
     for s in range(Batch_size):
+        # There are some cases where the end frame is lower than start frame
+        segment = [1, 0]
         with open(json_path + dataset) as file:
             Json_dict = json.load(file)
-            video_name = random.choice(list(Json_dict.keys()))
-            activity = random.choice(Json_dict[video_name])
+            while (segment[0] > segment[1]):
+                video_name = random.choice(list(Json_dict.keys()))
+                activity = random.choice(Json_dict[video_name])
 
-        segment = activity['milliseconds']
+                segment = activity['milliseconds']
 
         clip = get_frames(video_path+video_name, frames_per_step, segment, im_size, sess)
         batch[s, :, :, :, :] = clip
