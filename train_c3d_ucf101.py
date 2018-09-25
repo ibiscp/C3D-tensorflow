@@ -205,9 +205,11 @@ def run_training():
     #     print(v)
 
     # Restore all the layers excluding the last one
-    variables_exclude = ['var_name/wout', 'var_name/bout']#, 'global_step:0']
-    variables_include = [v.name for v in tf.trainable_variables(scope='var_name')]
-    variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=variables_include, exclude=variables_exclude)
+    exclude_variables = ['var_name/wout', 'var_name/bout']
+    restore_variables = [v.name for v in tf.trainable_variables(scope='var_name')]
+    # all_variables = tf.contrib.framework.get_variables_to_restore(exclude=exclude_variables + restore_variables)
+
+    variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=restore_variables, exclude=exclude_variables)
     init_fn = tf.contrib.framework.assign_from_checkpoint_fn(model_filename, variables_to_restore)
 
     # Initialization operation from scratch for the new output layer
@@ -221,20 +223,18 @@ def run_training():
     # Create a session for running Ops on the Graph.
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
-    # load the pretrained weights
+    # Initialize all variables
+    sess.run(tf.global_variables_initializer())
+
+    # Load the pretrained weights
     init_fn(sess)
 
     # Initialize the weights
     sess.run(fc8_init)
 
-    # Initialize variables from openpose and Mobilenet
-    all_variables = tf.contrib.framework.get_variables_to_restore(exclude=variables_exclude+variables_include)
-    # mobilenet_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='MobilenetV1')
-    # openpose_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Openpose')
-    # print(len(mobilenet_variables) + len(openpose_variables))
-    # init_openpose = tf.variables_initializer(mobilenet_variables + openpose_variables)
-    init_openpose = tf.variables_initializer(all_variables)
-    sess.run(init_openpose)
+    # # Initialize variables from openpose and Mobilenet
+    # init_openpose = tf.variables_initializer(all_variables)
+    # sess.run(init_openpose)
 
     # Create summary writter
     merged = tf.summary.merge_all()
@@ -249,16 +249,15 @@ def run_training():
                       sess = sess)
 
       # Train last layer and finetunning
-      if step < 100:
+      if step < 3000:
           sess.run(last_layer_train_op, feed_dict={
                           images_placeholder: train_images,
-                          labels_placeholder: train_labels
-                          })
+                          labels_placeholder: train_labels})
       else:
           sess.run(full_train_op, feed_dict={
                           images_placeholder: train_images,
-                          labels_placeholder: train_labels
-                          })
+                          labels_placeholder: train_labels})
+
       duration = time.time() - start_time
       print('Step %d: %.3f sec' % (step, duration))
 
