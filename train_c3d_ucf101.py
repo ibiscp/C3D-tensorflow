@@ -178,7 +178,9 @@ def run_training():
                         logit,
                         labels_placeholder[gpu_index * FLAGS.batch_size:(gpu_index + 1) * FLAGS.batch_size]
                         )
+        # Applied only to all variables (fine tuning)
         grads1 = opt_stable.compute_gradients(loss, varlist1)
+        # Applied only to out variables
         grads2 = opt_finetuning.compute_gradients(loss, varlist2)
         tower_grads1.append(grads1)
         tower_grads2.append(grads2)
@@ -198,11 +200,6 @@ def run_training():
     full_train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
 
     null_op = tf.no_op()
-
-    # # List variables in checkpoint
-    # var_list = tf.train.list_variables(model_filename)
-    # for v in var_list:
-    #     print(v)
 
     # Restore all the layers excluding the last one
     exclude_variables = ['var_name/wout', 'var_name/bout']
@@ -241,6 +238,7 @@ def run_training():
     train_writer = tf.summary.FileWriter('./visual_logs/train', sess.graph)
     test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
     for step in xrange(FLAGS.max_steps):
+      # print('Tensor value:', sess.run(tf.get_default_graph().get_tensor_by_name("var_name/bout:0")))
       start_time = time.time()
       train_images, train_labels = input_data.read_clip_and_label(
                       Batch_size=FLAGS.batch_size * gpu_num,
