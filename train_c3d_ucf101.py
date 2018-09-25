@@ -228,10 +228,12 @@ def run_training():
     sess.run(fc8_init)
 
     # Initialize variables from openpose and Mobilenet
-    mobilenet_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='MobilenetV1')
-    openpose_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Openpose')
-    print(len(mobilenet_variables) + len(openpose_variables))
-    init_openpose = tf.variables_initializer(mobilenet_variables + openpose_variables)
+    all_variables = tf.contrib.framework.get_variables_to_restore(exclude=variables_exclude+variables_include)
+    # mobilenet_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='MobilenetV1')
+    # openpose_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Openpose')
+    # print(len(mobilenet_variables) + len(openpose_variables))
+    # init_openpose = tf.variables_initializer(mobilenet_variables + openpose_variables)
+    init_openpose = tf.variables_initializer(all_variables)
     sess.run(init_openpose)
 
     # Create summary writter
