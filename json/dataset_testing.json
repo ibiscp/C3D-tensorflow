@@ -10945,13 +10945,6 @@
             ]
         },
         {
-            "label": "r-arm:Elbow extension",
-            "milliseconds": [
-                34352,
-                35601
-            ]
-        },
-        {
             "label": "l-arm:Elbow flexion",
             "milliseconds": [
                 12352,
@@ -10970,13 +10963,6 @@
             "milliseconds": [
                 26351,
                 28102
-            ]
-        },
-        {
-            "label": "l-arm:Elbow flexion",
-            "milliseconds": [
-                31602,
-                38852
             ]
         },
         {

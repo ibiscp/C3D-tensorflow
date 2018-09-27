@@ -45445,13 +45445,6 @@
             ]
         },
         {
-            "label": "r-leg:Hip extension",
-            "milliseconds": [
-                53988,
-                54040
-            ]
-        },
-        {
             "label": "r-leg:Knee flexion",
             "milliseconds": [
                 34577,
@@ -48301,20 +48294,6 @@
             "milliseconds": [
                 47634,
                 48360
-            ]
-        },
-        {
-            "label": "r-leg:Hip flexion",
-            "milliseconds": [
-                59342,
-                60343
-            ]
-        },
-        {
-            "label": "r-leg:Knee extension",
-            "milliseconds": [
-                63897,
-                65453
             ]
         }
     ],
