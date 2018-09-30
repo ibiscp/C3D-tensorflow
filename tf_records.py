@@ -264,7 +264,7 @@ def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
             img = cv2.flip(img, 1)
 
         pose_frame = PoseEstimation.compute_pose_frame(img, sess)
-        img = cv2.resize(img, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
+        img = cv2.resize(pose_frame, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
         frames[z, :, :, :] = img
 
     return frames
