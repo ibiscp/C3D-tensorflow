@@ -17,13 +17,12 @@
 # pylint: disable=missing-docstring
 import os
 import time
-import numpy
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-import dataset_manager as input_data
 import c3d_model
-import math
 import numpy as np
+import cv2
+import activities
 
 # Basic model parameters as external flags.
 flags = tf.app.flags
@@ -116,8 +115,8 @@ def run_training():
     use_pretrained_model = True
     model_filename = "model/sports1m_finetuning_ucf101.model"
 
-    with tf.name_scope('c3d'):
-        #with tf.Graph().as_default():
+    # with tf.name_scope('c3d'):
+    with tf.Graph().as_default():
         global_step = tf.get_variable(
             'global_step',
             [],
@@ -196,6 +195,7 @@ def run_training():
         variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY)
         variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
+        # Minimizer for transfer learning and finetuning
         last_layer_train_op = tf.group(apply_gradient_op2, variables_averages_op)
         full_train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
 
@@ -205,13 +205,12 @@ def run_training():
         exclude_variables = ['var_name/wout', 'var_name/bout']
         restore_variables = [v.name for v in tf.trainable_variables(scope='var_name')]
         # all_variables = tf.contrib.framework.get_variables_to_restore(exclude=exclude_variables + restore_variables)
-
         variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=restore_variables, exclude=exclude_variables)
         init_fn = tf.contrib.framework.assign_from_checkpoint_fn(model_filename, variables_to_restore)
 
         # Initialization operation from scratch for the new output layer
-        fout_variables = tf.contrib.framework.get_variables_by_suffix('out')
-        fc8_init = tf.variables_initializer(fout_variables)
+        # fout_variables = tf.contrib.framework.get_variables_by_suffix('out')
+        # fc8_init = tf.variables_initializer(fout_variables)
 
         # # Create a saver for writing training checkpoints.
         saver_variables = tf.trainable_variables(scope='var_name')
@@ -220,14 +219,8 @@ def run_training():
         # Create a session for running Ops on the Graph.
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
-        # Initialize all variables
-        sess.run(tf.global_variables_initializer())
-
-        # Load the pretrained weights
-        init_fn(sess)
-
         # Initialize the weights
-        sess.run(fc8_init)
+        # sess.run(fc8_init)
 
         # # Initialize variables from openpose and Mobilenet
         # init_openpose = tf.variables_initializer(all_variables)
@@ -237,14 +230,52 @@ def run_training():
         merged = tf.summary.merge_all()
         train_writer = tf.summary.FileWriter('./visual_logs/train', sess.graph)
         test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
+
+
+
+
+        # Tfrecords file
+        data_path = 'tfrecords/train.tfrecords'
+
+        # Create a list of filenames and pass it to a queue
+        filename_queue = tf.train.string_input_producer([data_path])
+
+        # Define a reader and read the next record
+        reader = tf.TFRecordReader()
+        _, serialized_example = reader.read(filename_queue)
+
+        # Get images and label
+        frames, label = decode(serialized_example, sess)
+
+        # Reshape image data into the original shape
+        frames = tf.reshape(frames, [activities.frames_per_step, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE, 3])
+
+        # Creates batches by randomly shuffling tensors
+        images, labels = tf.train.shuffle_batch([frames, label], batch_size=FLAGS.batch_size * gpu_num, capacity=1000, min_after_dequeue=100)
+
+        # Initialize all variables
+        init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+        sess.run(init_op)
+
+        # Load the pretrained weights
+        init_fn(sess)
+
+        # Create a coordinator and run all QueueRunner objects
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+
         for step in xrange(FLAGS.max_steps):
             # print('Tensor value:', sess.run(tf.get_default_graph().get_tensor_by_name("var_name/bout:0")))
+
             start_time = time.time()
-            train_images, train_labels = input_data.read_clip_and_label(
-                Batch_size=FLAGS.batch_size * gpu_num,
-                frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
-                im_size=c3d_model.CROP_SIZE,
-                sess = sess)
+
+            train_images, train_labels = sess.run([images, labels])
+
+            # train_images, train_labels = input_data.read_clip_and_label(
+            #     Batch_size=FLAGS.batch_size * gpu_num,
+            #     frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
+            #     im_size=c3d_model.CROP_SIZE,
+            #     sess = sess)
 
             # Train last layer and finetunning
             if step < 3000:
@@ -285,7 +316,67 @@ def run_training():
                     })
                 print ("accuracy: " + "{:.5f}".format(acc))
                 test_writer.add_summary(summary, step)
-    print("done")
+
+        # Stop the threads
+        coord.request_stop()
+
+        # Wait for threads to stop
+        coord.join(threads)
+        sess.close()
+
+    print("Done")
+
+def decode(serialized_example, sess):
+    '''
+    Given a serialized example in which the frames are stored as
+    compressed JPG images 'frames/0001', 'frames/0002' etc., this
+    function samples SEQ_NUM_FRAMES from the frame list, decodes them from
+    JPG into a tensor and packs them to obtain a tensor of shape (N,H,W,3).
+    Returns the the tuple (frames, class_label (tf.int64)
+    :param serialized_example: serialized example from tf.data.TFRecordDataset
+    :return: tuple: (frames (tf.uint8), class_label (tf.int64)
+    '''
+
+    # Prepare feature list; read encoded JPG images as bytes
+    features = dict()
+    features["class_label"] = tf.FixedLenFeature((), tf.int64)
+    for i in range(activities.frames_per_step):
+        features["frames/{:02d}".format(i)] = tf.FixedLenFeature((), tf.string)
+
+    # Parse into tensors
+    parsed_features = tf.parse_single_example(serialized_example, features)
+
+    # Decode the encoded JPG images
+    images = []
+    for i in range(activities.frames_per_step):
+        images.append(tf.image.decode_jpeg(parsed_features["frames/{:02d}".format(i)]))
+
+    # Pack the frames into one big tensor of shape (N,H,W,3)
+    images = tf.stack(images)
+    label = tf.cast(parsed_features['class_label'], tf.int64)
+
+    return images, label
+
+# def decode(serialized_example, sess):
+#   # Prepare feature list; read encoded JPG images as bytes
+#   features = dict()
+#   features["class_label"] = tf.FixedLenFeature((), tf.int64)
+#   features["frames"] = tf.VarLenFeature(tf.string)
+#   features["num_frames"] = tf.FixedLenFeature((), tf.int64)
+#
+#   # Parse into tensors
+#   parsed_features = tf.parse_single_example(serialized_example, features)
+#
+#   # Define list of frames to read
+#   offsets = tf.range(0, parsed_features["num_frames"] - 1)
+#
+#   # Decode the encoded JPG images
+#   images = tf.map_fn(lambda i: tf.image.decode_jpeg(parsed_features["frames"].values[i]),
+#                      offsets)
+#
+#   label = tf.cast(parsed_features["class_label"], tf.int64)
+#
+#   return images, label
 
 def main(_):
     run_training()

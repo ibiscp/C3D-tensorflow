@@ -5,7 +5,7 @@ samples_number = 400
 im_size = 112
 
 # Frames per step
-frames_per_step = 12
+frames_per_step = 16
 
 activities_ids = {'l-arm:Shoulder external rotation and elbow flexion': 22,
                      'head:Turn left': 12,

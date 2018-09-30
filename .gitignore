@@ -3,3 +3,4 @@ model
 .idea
 visual_logs
 models
+tfrecords

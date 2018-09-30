@@ -79,32 +79,62 @@ def create_tf_records(file_list, dest, name):
     sess.run(tf.global_variables_initializer())
 
     # open the TFRecords file
-    writer = tf.python_io.TFRecordWriter(train_filename)
+    with tf.python_io.TFRecordWriter(train_filename) as writer:
+        for i in tqdm(range(len(file_list))):
+            file = file_list[i]
 
-    for i in tqdm(range(len(file_list))):
-        file = file_list[i]
+            # Load the image
+            frames = get_frames(file[1], activities.frames_per_step, file[2], activities.im_size, file[3], sess)
+            label = activities_list[file[0]]
 
-        # Load the image
-        img = get_frames(file[1], activities.frames_per_step, file[2], activities.im_size, file[3], sess)
-        label = activities_list[file[0]]
+            # Create the dictionary with the data
+            features = {}
+            features['num_frames'] = _int64_feature(frames.shape[0])
+            features['height'] = _int64_feature(frames.shape[1])
+            features['width'] = _int64_feature(frames.shape[2])
+            features['channels'] = _int64_feature(frames.shape[3])
+            features['class_label'] = _int64_feature(label)
+            features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
+            features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
 
-        # Create a feature
-        feature = {name + '/label': _int64_feature(label),
-                   name + '/image': _bytes_feature(tf.compat.as_bytes(img.tostring()))}
-        # Create an example protocol buffer
-        example = tf.train.Example(features=tf.train.Features(feature=feature))
+            # Compress the frames using JPG and store in as bytes in:
+            # 'frames/01', 'frames/02', ...
+            for j in range(len(frames)):
+                ret, buffer = cv2.imencode(".jpg", frames[j])
+                features["frames/{:02d}".format(j)] = _bytes_feature(tf.compat.as_bytes(buffer.tobytes()))
 
-        # Serialize to string and write on the file
-        writer.write(example.SerializeToString())
+            # Compress the frames using JPG and store in as a list of strings in 'frames'
+            # encoded_frames = [tf.compat.as_bytes(cv2.imencode(".jpg", frame)[1].tobytes())
+            #                   for frame in frames]
+            # features['frames'] = _bytes_list_feature(encoded_frames)
 
-    writer.close()
+            # Wrap the data as Features
+            feature = tf.train.Features(feature=features)
+
+            # Create an example protocol buffer
+            example = tf.train.Example(features=feature)
+
+            # Serialize the data
+            serialized = example.SerializeToString()
+
+            # Write to the tfrecord
+            writer.write(serialized)
+
     sys.stdout.flush()
 
-# Convert data for tfrecords
+# Wrapper for inserting int64 features into Example proto
 def _int64_feature(value):
-  return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+    if not isinstance(value, list):
+        value = [value]
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
+
+# Wrapper for inserting bytes features into Example proto
 def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+# Wrapper for inserting bytes features into Example proto
+def _bytes_list_feature(values):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=values))
 
 # Extract frames from the videos
 def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
@@ -129,15 +159,14 @@ def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
     for z in range(frames_per_step):
         frame = start_frame + z
         video.set(1, frame)
-        ret, im = video.read()
+        _, img = video.read()
 
         if flip:
-            im = cv2.flip(im, 1)
+            img = cv2.flip(img, 1)
 
-        pose_frame = PoseEstimation.compute_pose_frame(im, sess)
-        res = cv2.resize(pose_frame, dsize = (im_size, im_size),
-                         interpolation=cv2.INTER_CUBIC)
-        frames[z, :, :, :] = res
+        #pose_frame = PoseEstimation.compute_pose_frame(img, sess)
+        img = cv2.resize(img, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
+        frames[z, :, :, :] = img
 
     return frames
 
