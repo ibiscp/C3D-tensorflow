@@ -4,3 +4,4 @@ model
 visual_logs
 models
 tfrecords
+__pycache__

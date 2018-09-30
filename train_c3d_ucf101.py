@@ -23,6 +23,7 @@ import c3d_model
 import numpy as np
 import cv2
 import activities
+import tf_records
 
 # Basic model parameters as external flags.
 flags = tf.app.flags
@@ -231,27 +232,52 @@ def run_training():
         train_writer = tf.summary.FileWriter('./visual_logs/train', sess.graph)
         test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
 
+        # Path to train and test tfrecords
+        train_data_path = 'tfrecords/train.tfrecords'
+        val_data_path = 'tfrecords/val.tfrecords'
 
+        # Training Dataset
+        train_dataset = tf.data.TFRecordDataset([train_data_path])
+        # Parse the record into tensors.
+        train_dataset = train_dataset.map(tf_records._parse_function)
+        train_dataset = train_dataset.shuffle(buffer_size=1000)
+        train_dataset = train_dataset.batch(10)
 
+        # Validation Dataset
+        validation_dataset = tf.data.TFRecordDataset([val_data_path])
+        validation_dataset = validation_dataset.map(tf_records._parse_function)
+        validation_dataset = validation_dataset.batch(10)
+        handle = tf.placeholder(tf.string, shape=[])
+        iterator = tf.contrib.data.Iterator.from_string_handle(handle, train_dataset.output_types, train_dataset.output_shapes)
 
-        # Tfrecords file
-        data_path = 'tfrecords/train.tfrecords'
+        next_element = iterator.get_next()
+        training_iterator = train_dataset.make_initializable_iterator()
+        validation_iterator = validation_dataset.make_one_shot_iterator()
 
-        # Create a list of filenames and pass it to a queue
-        filename_queue = tf.train.string_input_producer([data_path])
+        training_handle = sess.run(training_iterator.string_handle())
+        validation_handle = sess.run(validation_iterator.string_handle())
 
-        # Define a reader and read the next record
-        reader = tf.TFRecordReader()
-        _, serialized_example = reader.read(filename_queue)
+        sess.run(training_iterator.initializer)
+        # sess.run(validation_iterator.initializer)
 
-        # Get images and label
-        frames, label = decode(serialized_example, sess)
+        # images_train, labels_train = tf_records.read_and_decode(train_data_path, sess, c3d_model.CROP_SIZE, FLAGS.batch_size, gpu_num)
+        # images_test, labels_test = tf_records.read_and_decode(val_data_path, sess, c3d_model.CROP_SIZE, FLAGS.batch_size, gpu_num)
 
-        # Reshape image data into the original shape
-        frames = tf.reshape(frames, [activities.frames_per_step, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE, 3])
-
-        # Creates batches by randomly shuffling tensors
-        images, labels = tf.train.shuffle_batch([frames, label], batch_size=FLAGS.batch_size * gpu_num, capacity=1000, min_after_dequeue=100)
+        # # Create a list of filenames and pass it to a queue
+        # filename_queue = tf.train.string_input_producer([train_data_path])
+        #
+        # # Define a reader and read the next record
+        # reader = tf.TFRecordReader()
+        # _, serialized_example = reader.read(filename_queue)
+        #
+        # # Get images and label
+        # frames, label = tf_records.decode(serialized_example, sess)
+        #
+        # # Reshape image data into the original shape
+        # frames = tf.reshape(frames, [activities.frames_per_step, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE, 3])
+        #
+        # # Creates batches by randomly shuffling tensors
+        # images_train, labels_train = tf.train.shuffle_batch([frames, label], batch_size=FLAGS.batch_size * gpu_num, capacity=1000,min_after_dequeue=100)
 
         # Initialize all variables
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -261,15 +287,19 @@ def run_training():
         init_fn(sess)
 
         # Create a coordinator and run all QueueRunner objects
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+        # coord = tf.train.Coordinator()
+        # threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
         for step in xrange(FLAGS.max_steps):
             # print('Tensor value:', sess.run(tf.get_default_graph().get_tensor_by_name("var_name/bout:0")))
 
             start_time = time.time()
 
-            train_images, train_labels = sess.run([images, labels])
+            #train_images, train_labels = sess.run([images_train, labels_train])
+            train_images, train_labels = sess.run(next_element, feed_dict={handle: training_handle})
+
+            # for i in range(activities.frames_per_step):
+            #     cv2.imwrite('test' + str(i) + '.jpg', train_images[0][i])
 
             # train_images, train_labels = input_data.read_clip_and_label(
             #     Batch_size=FLAGS.batch_size * gpu_num,
@@ -302,12 +332,12 @@ def run_training():
                 print ("accuracy: " + "{:.5f}".format(acc))
                 train_writer.add_summary(summary, step)
                 print('Validation Data Eval:')
-                val_images, val_labels = input_data.read_clip_and_label(
-                    Batch_size=FLAGS.batch_size * gpu_num,
-                    frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
-                    im_size=c3d_model.CROP_SIZE,
-                    sess = sess,
-                    test = True)
+                # val_images, val_labels = sess.run([images_test, labels_test])
+                val_images, val_labels = sess.run(next_element, feed_dict={handle: validation_handle})
+
+                # for i in range(activities.frames_per_step):
+                #     cv2.imwrite('test' + str(i) + '.jpg', val_images[0][i])
+
                 summary, acc = sess.run(
                     [merged, accuracy],
                     feed_dict={
@@ -325,58 +355,6 @@ def run_training():
         sess.close()
 
     print("Done")
-
-def decode(serialized_example, sess):
-    '''
-    Given a serialized example in which the frames are stored as
-    compressed JPG images 'frames/0001', 'frames/0002' etc., this
-    function samples SEQ_NUM_FRAMES from the frame list, decodes them from
-    JPG into a tensor and packs them to obtain a tensor of shape (N,H,W,3).
-    Returns the the tuple (frames, class_label (tf.int64)
-    :param serialized_example: serialized example from tf.data.TFRecordDataset
-    :return: tuple: (frames (tf.uint8), class_label (tf.int64)
-    '''
-
-    # Prepare feature list; read encoded JPG images as bytes
-    features = dict()
-    features["class_label"] = tf.FixedLenFeature((), tf.int64)
-    for i in range(activities.frames_per_step):
-        features["frames/{:02d}".format(i)] = tf.FixedLenFeature((), tf.string)
-
-    # Parse into tensors
-    parsed_features = tf.parse_single_example(serialized_example, features)
-
-    # Decode the encoded JPG images
-    images = []
-    for i in range(activities.frames_per_step):
-        images.append(tf.image.decode_jpeg(parsed_features["frames/{:02d}".format(i)]))
-
-    # Pack the frames into one big tensor of shape (N,H,W,3)
-    images = tf.stack(images)
-    label = tf.cast(parsed_features['class_label'], tf.int64)
-
-    return images, label
-
-# def decode(serialized_example, sess):
-#   # Prepare feature list; read encoded JPG images as bytes
-#   features = dict()
-#   features["class_label"] = tf.FixedLenFeature((), tf.int64)
-#   features["frames"] = tf.VarLenFeature(tf.string)
-#   features["num_frames"] = tf.FixedLenFeature((), tf.int64)
-#
-#   # Parse into tensors
-#   parsed_features = tf.parse_single_example(serialized_example, features)
-#
-#   # Define list of frames to read
-#   offsets = tf.range(0, parsed_features["num_frames"] - 1)
-#
-#   # Decode the encoded JPG images
-#   images = tf.map_fn(lambda i: tf.image.decode_jpeg(parsed_features["frames"].values[i]),
-#                      offsets)
-#
-#   label = tf.cast(parsed_features["class_label"], tf.int64)
-#
-#   return images, label
 
 def main(_):
     run_training()
