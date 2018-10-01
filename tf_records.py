@@ -196,28 +196,33 @@ def create_tf_records(file_list, dest, name):
             features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
             features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
 
-            # Compress the frames using JPG and store in as bytes in:
-            # 'frames/01', 'frames/02', ...
-            for j in range(len(frames)):
-                ret, buffer = cv2.imencode(".jpg", frames[j])
-                features["frames/{:02d}".format(j)] = _bytes_feature(tf.compat.as_bytes(buffer.tobytes()))
+            try:
+                # Compress the frames using JPG and store in as bytes in:
+                # 'frames/01', 'frames/02', ...
+                for j in range(len(frames)):
+                    ret, buffer = cv2.imencode(".jpg", frames[j])
+                    features["frames/{:02d}".format(j)] = _bytes_feature(tf.compat.as_bytes(buffer.tobytes()))
 
-            # Compress the frames using JPG and store in as a list of strings in 'frames'
-            # encoded_frames = [tf.compat.as_bytes(cv2.imencode(".jpg", frame)[1].tobytes())
-            #                   for frame in frames]
-            # features['frames'] = _bytes_list_feature(encoded_frames)
+                # Compress the frames using JPG and store in as a list of strings in 'frames'
+                # encoded_frames = [tf.compat.as_bytes(cv2.imencode(".jpg", frame)[1].tobytes())
+                #                   for frame in frames]
+                # features['frames'] = _bytes_list_feature(encoded_frames)
 
-            # Wrap the data as Features
-            feature = tf.train.Features(feature=features)
+                # Wrap the data as Features
+                feature = tf.train.Features(feature=features)
 
-            # Create an example protocol buffer
-            example = tf.train.Example(features=feature)
+                # Create an example protocol buffer
+                example = tf.train.Example(features=feature)
 
-            # Serialize the data
-            serialized = example.SerializeToString()
+                # Serialize the data
+                serialized = example.SerializeToString()
 
-            # Write to the tfrecord
-            writer.write(serialized)
+                # Write to the tfrecord
+                writer.write(serialized)
+
+            except:
+                print('Error exporting frames from file!')
+                print(file)
 
     sys.stdout.flush()
 
@@ -281,10 +286,9 @@ def main(json, videos, dest):
     print('\nAugmenting train list with', activities.samples_number, 'samples per activity')
     train_list = augment_list(train_list)
 
-
+    # Uncomment to generate a small sample of tfrecords
     # train_list = train_list[:50]
     # test_list = test_list[:30]
-
 
     print('Augmented train size:', len(train_list))
 
