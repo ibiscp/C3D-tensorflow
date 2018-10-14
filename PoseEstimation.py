@@ -44,6 +44,9 @@ def compute_pose_frame(input_image, sess):
 
         first_time = False
 
+        # Make the graph read-only and avoid memory leak
+        sess.graph.finalize()
+
     vec = sess.run(net.get_output(name = 'concat_stage7'), feed_dict={'image:0': [image]})
     run_options = tf.RunOptions(trace_level = tf.RunOptions.FULL_TRACE)
     run_metadata = tf.RunMetadata()
