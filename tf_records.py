@@ -181,7 +181,7 @@ def create_tf_records(file_list, dest, name):
     for j in range(number_files):
         print('File', j+1, '/', number_files)
 
-        train_filename = dest + name + str(j) + '.tfrecords'  # address to save the TFRecords file
+        train_filename = dest + name + '_' +  str(j) + '.tfrecords'  # address to save the TFRecords file
 
         sub_list = file_list[j*files_per_tfrecord:(j+1)*files_per_tfrecord]
 
