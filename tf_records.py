@@ -10,11 +10,20 @@ import random
 import argparse
 # Add openpose to the path and import PoseEstimation
 sys.path.append('./openpose')
-import PoseEstimation
+# import PoseEstimation
+from openpose.common import estimate_pose, draw_humans
+from openpose.networks import get_network
 
 activities_list = activities.activities_tfrecords
 samples_number = activities.samples_number
 
+# Openpose variables
+model = 'mobilenet'
+input_width = 368
+input_height = 368
+stage_level = 6
+input_node = tf.placeholder(tf.float32, shape=(1, input_height, input_width, 3), name = 'image')
+net, _, last_layer = get_network(model, input_node, None)
 
 def _parse_function(serialized_example):
 
@@ -93,27 +102,6 @@ def decode(serialized_example, sess):
 
     return images, label
 
-# def decode(serialized_example, sess):
-#   # Prepare feature list; read encoded JPG images as bytes
-#   features = dict()
-#   features["class_label"] = tf.FixedLenFeature((), tf.int64)
-#   features["frames"] = tf.VarLenFeature(tf.string)
-#   features["num_frames"] = tf.FixedLenFeature((), tf.int64)
-#
-#   # Parse into tensors
-#   parsed_features = tf.parse_single_example(serialized_example, features)
-#
-#   # Define list of frames to read
-#   offsets = tf.range(0, parsed_features["num_frames"] - 1)
-#
-#   # Decode the encoded JPG images
-#   images = tf.map_fn(lambda i: tf.image.decode_jpeg(parsed_features["frames"].values[i]),
-#                      offsets)
-#
-#   label = tf.cast(parsed_features["class_label"], tf.int64)
-#
-#   return images, label
-
 # Create list of videos for training and testing
 def create_files_list(json_dir, video_path):
 
@@ -169,62 +157,97 @@ def augment_list(list):
 
 def create_tf_records(file_list, dest, name):
 
-    train_filename = dest + name + '.tfrecords'  # address to save the TFRecords file
-
     # Create a session for running Ops on the Graph.
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
     # Initialize all variables
     sess.run(tf.global_variables_initializer())
 
-    # open the TFRecords file
-    with tf.python_io.TFRecordWriter(train_filename) as writer:
-        for i in tqdm(range(len(file_list))):
-            file = file_list[i]
+    # Load pretrained weights
+    s = '%dx%d' % (input_node.shape[2], input_node.shape[1])
+    ckpts = 'openpose/models/trained/mobilenet_' + s + '/model-release'
+    variables = tf.contrib.slim.get_variables_to_restore()
+    loader = tf.train.Saver(variables)
+    loader.restore(sess, ckpts)
 
-            # Load the image
-            frames = get_frames(file[1], activities.frames_per_step, file[2], activities.im_size, file[3], sess)
-            label = activities_list[file[0]]
+    # Make the graph read-only and avoid memory leak
+    sess.graph.finalize()
 
-            # Create the dictionary with the data
-            features = {}
-            features['num_frames'] = _int64_feature(frames.shape[0])
-            features['height'] = _int64_feature(frames.shape[1])
-            features['width'] = _int64_feature(frames.shape[2])
-            features['channels'] = _int64_feature(frames.shape[3])
-            features['class_label'] = _int64_feature(label)
-            features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
-            features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
+    # Specify the number of files in each tfrecord
+    files_per_tfrecord = len(file_list)
+    number_files = int(len(file_list)/files_per_tfrecord)
 
-            try:
-                # Compress the frames using JPG and store in as bytes in:
-                # 'frames/01', 'frames/02', ...
-                for j in range(len(frames)):
-                    ret, buffer = cv2.imencode(".jpg", frames[j])
-                    features["frames/{:02d}".format(j)] = _bytes_feature(tf.compat.as_bytes(buffer.tobytes()))
+    for j in range(number_files):
+        print('File', j+1, '/', number_files)
 
-                # Compress the frames using JPG and store in as a list of strings in 'frames'
-                # encoded_frames = [tf.compat.as_bytes(cv2.imencode(".jpg", frame)[1].tobytes())
-                #                   for frame in frames]
-                # features['frames'] = _bytes_list_feature(encoded_frames)
+        train_filename = dest + name + str(j) + '.tfrecords'  # address to save the TFRecords file
 
-                # Wrap the data as Features
-                feature = tf.train.Features(feature=features)
+        sub_list = file_list[j*files_per_tfrecord:(j+1)*files_per_tfrecord]
 
-                # Create an example protocol buffer
-                example = tf.train.Example(features=feature)
+        # open the TFRecords file
+        with tf.python_io.TFRecordWriter(train_filename) as writer:
+            for i in tqdm(range(len(sub_list))):
+                file = sub_list[i]
 
-                # Serialize the data
-                serialized = example.SerializeToString()
+                # Get frames from the video
+                frames = get_frames(file[1], activities.frames_per_step, file[2], activities.im_size, file[3], sess)
+                label = activities_list[file[0]]
 
-                # Write to the tfrecord
-                writer.write(serialized)
+                # Generate poses for the frames
+                poses = np.zeros(shape=(activities.frames_per_step, activities.im_size, activities.im_size, 3), dtype=float)
 
-            except:
-                print('Error exporting frames from file!')
-                print(file)
+                for z in range(len(frames)):
+                    image = cv2.resize(frames[z], dsize=(input_height, input_width), interpolation=cv2.INTER_CUBIC)
+                    pafMat, heatMat = sess.run(
+                        [
+                            net.get_output(name=last_layer.format(stage=stage_level, aux=1)),
+                            net.get_output(name=last_layer.format(stage=stage_level, aux=2))
+                        ], feed_dict={'image:0': [image]}
+                    )
+                    heatMat, pafMat = heatMat[0], pafMat[0]
+                    humans = estimate_pose(heatMat, pafMat)
+                    pose_image = np.zeros(tuple(image.shape), dtype=np.uint8)
+                    pose_image = draw_humans(pose_image, humans)
 
-    sys.stdout.flush()
+                    # cv2.imwrite('teste.jpg', pose_image)
+
+                    img = cv2.resize(pose_image, dsize=(activities.im_size, activities.im_size), interpolation=cv2.INTER_CUBIC)
+                    poses[z, :, :, :] = img
+
+                # Create the dictionary with the data
+                features = {}
+                features['num_frames'] = _int64_feature(poses.shape[0])
+                features['height'] = _int64_feature(poses.shape[1])
+                features['width'] = _int64_feature(poses.shape[2])
+                features['channels'] = _int64_feature(poses.shape[3])
+                features['class_label'] = _int64_feature(label)
+                features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
+                features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
+
+                try:
+                    # Compress the frames using JPG and store in as bytes in:
+                    # 'frames/01', 'frames/02', ...
+                    for j in range(len(poses)):
+                        ret, buffer = cv2.imencode(".jpg", poses[j])
+                        features["frames/{:02d}".format(j)] = _bytes_feature(tf.compat.as_bytes(buffer.tobytes()))
+
+                    # Wrap the data as Features
+                    feature = tf.train.Features(feature=features)
+
+                    # Create an example protocol buffer
+                    example = tf.train.Example(features=feature)
+
+                    # Serialize the data
+                    serialized = example.SerializeToString()
+
+                    # Write to the tfrecord
+                    writer.write(serialized)
+
+                except:
+                    print('Error exporting frames from file!')
+                    print(file)
+
+        sys.stdout.flush()
 
 # Wrapper for inserting int64 features into Example proto
 def _int64_feature(value):
@@ -258,7 +281,8 @@ def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
     start_frame = central_frame[1] - frames_per_step / 2
 
     # Matrix for the frames
-    frames = np.zeros(shape=(frames_per_step, im_size, im_size, 3), dtype=float)
+    # frames = np.zeros(shape=(frames_per_step, im_size, im_size, 3), dtype=float)
+    frames = []
 
     for z in range(frames_per_step):
         frame = start_frame + z
@@ -268,9 +292,10 @@ def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
         if flip:
             img = cv2.flip(img, 1)
 
-        pose_frame = PoseEstimation.compute_pose_frame(img, sess)
-        img = cv2.resize(pose_frame, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
-        frames[z, :, :, :] = img
+        # pose_frame = PoseEstimation.compute_pose_frame(img, sess)
+        # img = cv2.resize(pose_frame, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
+        # frames[z, :, :, :] = img
+        frames.append(img)
 
     return frames
 
@@ -295,7 +320,7 @@ def main(json, videos, dest):
     if not os.path.exists(dest):
         os.makedirs(dest)
 
-    print('\nCreating tfrecords for train dataset')
+    print('\nCreating tfrecords')
     create_tf_records(train_list, dest, 'train')
 
     print('\nCreating tfrecords for validation dataset')

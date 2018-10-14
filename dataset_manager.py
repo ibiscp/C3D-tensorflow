@@ -12,7 +12,7 @@ import tensorflow as tf
 
 # Add openpose to the path and import PoseEstimation
 sys.path.append('./openpose')
-import PoseEstimation
+import PoseEstimation_old
 
 # Paths
 json_path = 'json/'
@@ -49,7 +49,7 @@ def get_frames(video_path, frames_per_step, segment, im_size, sess):
         frame = start_frame + z
         video.set(1, frame)
         ret, im = video.read()
-        pose_frame = PoseEstimation.compute_pose_frame(im, sess)
+        pose_frame = PoseEstimation_old.compute_pose_frame(im, sess)
         res = cv2.resize(pose_frame, dsize = (im_size, im_size),
                          interpolation=cv2.INTER_CUBIC)
         frames[z, :, :, :] = res
