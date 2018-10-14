@@ -233,8 +233,8 @@ def run_training():
         test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
 
         # Path to train and test tfrecords
-        train_data_path = 'tfrecords/train.tfrecords'
-        val_data_path = 'tfrecords/val.tfrecords'
+        train_data_path = 'tfrecords/train_0.tfrecords'
+        val_data_path = 'tfrecords/val_0.tfrecords'
 
         # Training Dataset
         train_dataset = tf.data.TFRecordDataset([train_data_path])
