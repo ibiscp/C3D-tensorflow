@@ -197,35 +197,35 @@ def create_tf_records(file_list, dest, name):
                 # Generate poses for the frames
                 poses = np.zeros(shape=(activities.frames_per_step, activities.im_size, activities.im_size, 3), dtype=float)
 
-                for z in range(len(frames)):
-                    image = cv2.resize(frames[z], dsize=(input_height, input_width), interpolation=cv2.INTER_CUBIC)
-                    pafMat, heatMat = sess.run(
-                        [
-                            net.get_output(name=last_layer.format(stage=stage_level, aux=1)),
-                            net.get_output(name=last_layer.format(stage=stage_level, aux=2))
-                        ], feed_dict={'image:0': [image]}
-                    )
-                    heatMat, pafMat = heatMat[0], pafMat[0]
-                    humans = estimate_pose(heatMat, pafMat)
-                    pose_image = np.zeros(tuple(image.shape), dtype=np.uint8)
-                    pose_image = draw_humans(pose_image, humans)
-
-                    # cv2.imwrite('teste.jpg', pose_image)
-
-                    img = cv2.resize(pose_image, dsize=(activities.im_size, activities.im_size), interpolation=cv2.INTER_CUBIC)
-                    poses[z, :, :, :] = img
-
-                # Create the dictionary with the data
-                features = {}
-                features['num_frames'] = _int64_feature(poses.shape[0])
-                features['height'] = _int64_feature(poses.shape[1])
-                features['width'] = _int64_feature(poses.shape[2])
-                features['channels'] = _int64_feature(poses.shape[3])
-                features['class_label'] = _int64_feature(label)
-                features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
-                features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
-
                 try:
+                    for z in range(len(frames)):
+                        image = cv2.resize(frames[z], dsize=(input_height, input_width), interpolation=cv2.INTER_CUBIC)
+                        pafMat, heatMat = sess.run(
+                            [
+                                net.get_output(name=last_layer.format(stage=stage_level, aux=1)),
+                                net.get_output(name=last_layer.format(stage=stage_level, aux=2))
+                            ], feed_dict={'image:0': [image]}
+                        )
+                        heatMat, pafMat = heatMat[0], pafMat[0]
+                        humans = estimate_pose(heatMat, pafMat)
+                        pose_image = np.zeros(tuple(image.shape), dtype=np.uint8)
+                        pose_image = draw_humans(pose_image, humans)
+
+                        # cv2.imwrite('teste.jpg', pose_image)
+
+                        img = cv2.resize(pose_image, dsize=(activities.im_size, activities.im_size), interpolation=cv2.INTER_CUBIC)
+                        poses[z, :, :, :] = img
+
+                    # Create the dictionary with the data
+                    features = {}
+                    features['num_frames'] = _int64_feature(poses.shape[0])
+                    features['height'] = _int64_feature(poses.shape[1])
+                    features['width'] = _int64_feature(poses.shape[2])
+                    features['channels'] = _int64_feature(poses.shape[3])
+                    features['class_label'] = _int64_feature(label)
+                    features['class_text'] = _bytes_feature(tf.compat.as_bytes(file[0]))
+                    features['filename'] = _bytes_feature(tf.compat.as_bytes(file[1].split('/')[1]))
+
                     # Compress the frames using JPG and store in as bytes in:
                     # 'frames/01', 'frames/02', ...
                     for j in range(len(poses)):
