@@ -47,17 +47,17 @@ def compute_pose_frame(input_image, sess):
         # Make the graph read-only and avoid memory leak
         sess.graph.finalize()
 
-    vec = sess.run(net.get_output(name = 'concat_stage7'), feed_dict={'image:0': [image]})
-    run_options = tf.RunOptions(trace_level = tf.RunOptions.FULL_TRACE)
-    run_metadata = tf.RunMetadata()
+    # vec = sess.run(net.get_output(name = 'concat_stage7'), feed_dict={'image:0': [image]})
+    # run_options = tf.RunOptions(trace_level = tf.RunOptions.FULL_TRACE)
+    # run_metadata = tf.RunMetadata()
     pafMat, heatMat = sess.run(
         [
             net.get_output(name=last_layer.format(stage=stage_level, aux=1)),
             net.get_output(name=last_layer.format(stage=stage_level, aux=2))
-        ], feed_dict={'image:0': [image]}, options=run_options, run_metadata=run_metadata
+        ], feed_dict={'image:0': [image]}#, options=run_options, run_metadata=run_metadata
     )
-    tl = timeline.Timeline(run_metadata.step_stats)
-    ctf = tl.generate_chrome_trace_format()
+    # tl = timeline.Timeline(run_metadata.step_stats)
+    # ctf = tl.generate_chrome_trace_format()
     heatMat, pafMat = heatMat[0], pafMat[0]
     humans = estimate_pose(heatMat, pafMat)
     pose_image = np.zeros(tuple(image.shape), dtype=np.uint8)
