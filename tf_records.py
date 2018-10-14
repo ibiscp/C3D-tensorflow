@@ -165,7 +165,8 @@ def create_tf_records(file_list, dest, name):
 
     # Load pretrained weights
     s = '%dx%d' % (input_node.shape[2], input_node.shape[1])
-    ckpts = 'openpose/models/trained/mobilenet_' + s + '/model-release'
+    # ckpts = 'openpose/models/trained/mobilenet_' + s + '/model-release'
+    ckpts = 'model/mobilenet_' + s + '/model-release'
     variables = tf.contrib.slim.get_variables_to_restore()
     loader = tf.train.Saver(variables)
     loader.restore(sess, ckpts)
