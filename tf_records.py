@@ -172,7 +172,7 @@ def create_tf_records(file_list, dest, name):
     loader.restore(sess, ckpts)
 
     # Make the graph read-only and avoid memory leak
-    sess.graph.finalize()
+    # sess.graph.finalize()
 
     # Specify the number of files in each tfrecord
     files_per_tfrecord = len(file_list)
@@ -313,7 +313,7 @@ def main(json, videos, dest):
     train_list = augment_list(train_list)
 
     # Uncomment to generate a small sample of tfrecords
-    # train_list = train_list[:50]
+    train_list = train_list[:10]
     # test_list = test_list[:30]
 
     print('Augmented train size:', len(train_list))
