@@ -24,6 +24,7 @@ import numpy as np
 import cv2
 import activities
 import tf_records
+from tqdm import tqdm
 
 # Basic model parameters as external flags.
 flags = tf.app.flags
@@ -200,18 +201,11 @@ def run_training():
         last_layer_train_op = tf.group(apply_gradient_op2, variables_averages_op)
         full_train_op = tf.group(apply_gradient_op1, apply_gradient_op2, variables_averages_op)
 
-        null_op = tf.no_op()
-
         # Restore all the layers excluding the last one
         exclude_variables = ['var_name/wout', 'var_name/bout']
         restore_variables = [v.name for v in tf.trainable_variables(scope='var_name')]
-        # all_variables = tf.contrib.framework.get_variables_to_restore(exclude=exclude_variables + restore_variables)
         variables_to_restore = tf.contrib.framework.get_variables_to_restore(include=restore_variables, exclude=exclude_variables)
         init_fn = tf.contrib.framework.assign_from_checkpoint_fn(model_filename, variables_to_restore)
-
-        # Initialization operation from scratch for the new output layer
-        # fout_variables = tf.contrib.framework.get_variables_by_suffix('out')
-        # fc8_init = tf.variables_initializer(fout_variables)
 
         # # Create a saver for writing training checkpoints.
         saver_variables = tf.trainable_variables(scope='var_name')
@@ -219,13 +213,6 @@ def run_training():
 
         # Create a session for running Ops on the Graph.
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
-
-        # Initialize the weights
-        # sess.run(fc8_init)
-
-        # # Initialize variables from openpose and Mobilenet
-        # init_openpose = tf.variables_initializer(all_variables)
-        # sess.run(init_openpose)
 
         # Create summary writter
         merged = tf.summary.merge_all()
@@ -236,48 +223,20 @@ def run_training():
         train_data_path = 'tfrecords/train_0.tfrecords'
         val_data_path = 'tfrecords/val_0.tfrecords'
 
-        # Training Dataset
-        train_dataset = tf.data.TFRecordDataset([train_data_path])
-        # Parse the record into tensors.
-        train_dataset = train_dataset.map(tf_records._parse_function)
-        train_dataset = train_dataset.shuffle(buffer_size=1000)
-        train_dataset = train_dataset.batch(10)
+        # Dataset
+        filename = tf.placeholder(tf.string, shape=[None])
+        dataset = tf.data.TFRecordDataset(filename)
+        dataset = dataset.map(tf_records._parse_function)
+        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 10)
+        dataset = dataset.batch(FLAGS.batch_size)
 
-        # Validation Dataset
-        validation_dataset = tf.data.TFRecordDataset([val_data_path])
-        validation_dataset = validation_dataset.map(tf_records._parse_function)
-        validation_dataset = validation_dataset.batch(10)
-        handle = tf.placeholder(tf.string, shape=[])
-        iterator = tf.contrib.data.Iterator.from_string_handle(handle, train_dataset.output_types, train_dataset.output_shapes)
-
+        # Iterator
+        iterator = dataset.make_initializable_iterator()
         next_element = iterator.get_next()
-        training_iterator = train_dataset.make_initializable_iterator()
-        validation_iterator = validation_dataset.make_one_shot_iterator()
 
-        training_handle = sess.run(training_iterator.string_handle())
-        validation_handle = sess.run(validation_iterator.string_handle())
-
-        sess.run(training_iterator.initializer)
-        # sess.run(validation_iterator.initializer)
-
-        # images_train, labels_train = tf_records.read_and_decode(train_data_path, sess, c3d_model.CROP_SIZE, FLAGS.batch_size, gpu_num)
-        # images_test, labels_test = tf_records.read_and_decode(val_data_path, sess, c3d_model.CROP_SIZE, FLAGS.batch_size, gpu_num)
-
-        # # Create a list of filenames and pass it to a queue
-        # filename_queue = tf.train.string_input_producer([train_data_path])
-        #
-        # # Define a reader and read the next record
-        # reader = tf.TFRecordReader()
-        # _, serialized_example = reader.read(filename_queue)
-        #
-        # # Get images and label
-        # frames, label = tf_records.decode(serialized_example, sess)
-        #
-        # # Reshape image data into the original shape
-        # frames = tf.reshape(frames, [activities.frames_per_step, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE, 3])
-        #
-        # # Creates batches by randomly shuffling tensors
-        # images_train, labels_train = tf.train.shuffle_batch([frames, label], batch_size=FLAGS.batch_size * gpu_num, capacity=1000,min_after_dequeue=100)
+        # Tfrecords size
+        train_size = sum(1 for _ in tf.python_io.tf_record_iterator(train_data_path))
+        val_size = sum(1 for _ in tf.python_io.tf_record_iterator(val_data_path))
 
         # Initialize all variables
         init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -286,66 +245,65 @@ def run_training():
         # Load the pretrained weights
         init_fn(sess)
 
-        # Create a coordinator and run all QueueRunner objects
-        # coord = tf.train.Coordinator()
-        # threads = tf.train.start_queue_runners(coord=coord, sess=sess)
-
         for step in xrange(FLAGS.max_steps):
-            # print('Tensor value:', sess.run(tf.get_default_graph().get_tensor_by_name("var_name/bout:0")))
 
-            start_time = time.time()
+            if step % 10 == 0:
+                print("\nTraining")
+            try:
+                with tqdm(desc="Epoch " + str(step), total=train_size) as pbar:
+                    sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
+                    while True:
+                        train_images, train_labels = sess.run(next_element)
 
-            #train_images, train_labels = sess.run([images_train, labels_train])
-            train_images, train_labels = sess.run(next_element, feed_dict={handle: training_handle})
+                        # Train last layer and finetunning
+                        if step < int(FLAGS.max_steps * 0.3):
+                            sess.run(last_layer_train_op, feed_dict={images_placeholder: train_images,
+                                                                     labels_placeholder: train_labels})
+                        else:
+                            sess.run(full_train_op, feed_dict={images_placeholder: train_images,
+                                                               labels_placeholder: train_labels})
+                        pbar.update(len(train_labels))
 
-            # for i in range(activities.frames_per_step):
-            #     cv2.imwrite('test' + str(i) + '.jpg', train_images[0][i])
-
-            # train_images, train_labels = input_data.read_clip_and_label(
-            #     Batch_size=FLAGS.batch_size * gpu_num,
-            #     frames_per_step = c3d_model.NUM_FRAMES_PER_CLIP,
-            #     im_size=c3d_model.CROP_SIZE,
-            #     sess = sess)
-
-            # Train last layer and finetunning
-            if step < 3000:
-                sess.run(last_layer_train_op, feed_dict={
-                    images_placeholder: train_images,
-                    labels_placeholder: train_labels})
-            else:
-                sess.run(full_train_op, feed_dict={
-                    images_placeholder: train_images,
-                    labels_placeholder: train_labels})
-
-            duration = time.time() - start_time
-            print('Step %d: %.3f sec' % (step, duration))
+            except tf.errors.OutOfRangeError:
+                pass
 
             # Save a checkpoint and evaluate the model periodically.
-            if (step) % 10 == 0 or (step + 1) == FLAGS.max_steps:
+            if step % 10 == 0 or (step + 1) == FLAGS.max_steps:
                 saver.save(sess, os.path.join(model_save_dir, 'c3d_ucf_model'), global_step=step)
-                print('Training Data Eval:')
-                summary, acc = sess.run(
-                    [merged, accuracy],
-                    feed_dict={images_placeholder: train_images,
-                               labels_placeholder: train_labels
-                               })
-                print ("accuracy: " + "{:.5f}".format(acc))
-                train_writer.add_summary(summary, step)
-                print('Validation Data Eval:')
-                # val_images, val_labels = sess.run([images_test, labels_test])
-                val_images, val_labels = sess.run(next_element, feed_dict={handle: validation_handle})
+                acc_train = []
+                acc_val = []
 
-                # for i in range(activities.frames_per_step):
-                #     cv2.imwrite('test' + str(i) + '.jpg', val_images[0][i])
+                print("\nAccuracy")
 
-                summary, acc = sess.run(
-                    [merged, accuracy],
-                    feed_dict={
-                        images_placeholder: val_images,
-                        labels_placeholder: val_labels
-                    })
-                print ("accuracy: " + "{:.5f}".format(acc))
-                test_writer.add_summary(summary, step)
+                # Training
+                try:
+                    with tqdm(desc="Epoch " + str(step), total=train_size) as pbar:
+                        sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
+                        while True:
+                            train_images, train_labels = sess.run(next_element)
+
+                            summary, acc = sess.run(
+                                [merged, accuracy], feed_dict={images_placeholder: train_images, labels_placeholder: train_labels})
+                            acc_train.append(acc)
+                            pbar.update(len(train_labels))
+                            train_writer.add_summary(summary, step)
+                except tf.errors.OutOfRangeError:
+                    print("\tTraining: " + "{:.5f}".format(np.mean(acc_train)))
+
+                # Testing
+                try:
+                    with tqdm(desc="Epoch " + str(step), total=val_size) as pbar:
+                        sess.run(iterator.initializer, feed_dict={filename: [val_data_path]})
+                        while True:
+                            val_images, val_labels = sess.run(next_element)
+
+                            summary, acc = sess.run(
+                                [merged, accuracy], feed_dict={images_placeholder: val_images, labels_placeholder: val_labels})
+                            acc_val.append(acc)
+                            pbar.update(len(val_labels))
+                            test_writer.add_summary(summary, step)
+                except tf.errors.OutOfRangeError:
+                    print("\tValidation: " + "{:.5f}".format(np.mean(acc_val)))
 
         # Stop the threads
         coord.request_stop()
@@ -354,7 +312,7 @@ def run_training():
         coord.join(threads)
         sess.close()
 
-    print("Done")
+    print("\nDone")
 
 def main(_):
     run_training()

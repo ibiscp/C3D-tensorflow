@@ -1,5 +1,15 @@
 # C3D-tensorflow
 
+Clone the repository:
+~~~~
+git clone --recursive https://github.com/ibiscp/C3D-tensorflow.git
+~~~~
+
+Generate the dataset:
+~~~~
+python3 tf_records.py
+~~~~
+
 This is a repository trying to implement [C3D-caffe][5] on tensorflow,useing models directly converted from original C3D-caffe.    
 Be aware that there are about 5% video-level accuracy margin on UCF101 split1  between our implement in tensorflow and  the original C3D-caffe.  
 

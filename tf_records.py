@@ -313,8 +313,8 @@ def main(json, videos, dest):
     train_list = augment_list(train_list)
 
     # Uncomment to generate a small sample of tfrecords
-    train_list = train_list[:10]
-    # test_list = test_list[:30]
+    train_list = train_list[:50]
+    test_list = test_list[:30]
 
     print('Augmented train size:', len(train_list))
 
