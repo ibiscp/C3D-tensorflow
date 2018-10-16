@@ -190,7 +190,7 @@ def run_training():
 
         logits = tf.concat(logits,0)
         accuracy = tower_acc(logits, labels_placeholder)
-        tf.summary.scalar('accuracy', accuracy)
+        # tf.summary.scalar('accuracy', accuracy)
         grads1 = average_gradients(tower_grads1)
         grads2 = average_gradients(tower_grads2)
         apply_gradient_op1 = opt_stable.apply_gradients(grads1)
@@ -216,7 +216,7 @@ def run_training():
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
 
         # Create summary writter
-        merged = tf.summary.merge_all()
+        # merged = tf.summary.merge_all()
         train_writer = tf.summary.FileWriter('./visual_logs/train', sess.graph)
         test_writer = tf.summary.FileWriter('./visual_logs/test', sess.graph)
 
@@ -228,7 +228,7 @@ def run_training():
         filename = tf.placeholder(tf.string, shape=[None])
         dataset = tf.data.TFRecordDataset(filename)
         dataset = dataset.map(tf_records._parse_function)
-        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 10)
+        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 100)
         dataset = dataset.batch(FLAGS.batch_size)
 
         # Iterator
@@ -246,9 +246,13 @@ def run_training():
         # Load the pretrained weights
         init_fn(sess)
 
+        # Create a coordinator and run all QueueRunner objects
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+
         for step in xrange(FLAGS.max_steps):
 
-            if step % 10 == 0 or step == 1:
+            if step % 10 == 1 or step == 0:
                 print("\nTraining")
             try:
                 with tqdm(desc="Epoch " + str(step), total=train_size, file=sys.stdout) as pbar:
@@ -283,13 +287,16 @@ def run_training():
                         while True:
                             train_images, train_labels = sess.run(next_element)
 
-                            summary, acc = sess.run(
-                                [merged, accuracy], feed_dict={images_placeholder: train_images, labels_placeholder: train_labels})
+                            acc = sess.run(
+                                accuracy, feed_dict={images_placeholder: train_images, labels_placeholder: train_labels})
                             acc_train.append(acc)
                             pbar.update(len(train_labels))
-                            train_writer.add_summary(summary, step)
                 except tf.errors.OutOfRangeError:
-                    print("\tTraining: " + "{:.5f}".format(np.mean(acc_train)))
+                    acc_total = np.mean(acc_train)
+                    summary = tf.Summary()
+                    summary.value.add(tag="Training Accuracy", simple_value=acc_total)
+                    train_writer.add_summary(summary, step)
+                    print("\tTraining: " + "{:.5f}".format(acc_total))
 
                 # Testing
                 try:
@@ -298,13 +305,16 @@ def run_training():
                         while True:
                             val_images, val_labels = sess.run(next_element)
 
-                            summary, acc = sess.run(
-                                [merged, accuracy], feed_dict={images_placeholder: val_images, labels_placeholder: val_labels})
+                            acc = sess.run(
+                                accuracy, feed_dict={images_placeholder: val_images, labels_placeholder: val_labels})
                             acc_val.append(acc)
                             pbar.update(len(val_labels))
-                            test_writer.add_summary(summary, step)
                 except tf.errors.OutOfRangeError:
-                    print("\tValidation: " + "{:.5f}".format(np.mean(acc_val)))
+                    acc_total = np.mean(acc_train)
+                    summary = tf.Summary()
+                    summary.value.add(tag="Validation Accuracy", simple_value=acc_total)
+                    test_writer.add_summary(summary, step)
+                    print("\tValidation: " + "{:.5f}".format(acc_total))
 
         # Stop the threads
         coord.request_stop()
