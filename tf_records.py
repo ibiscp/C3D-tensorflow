@@ -1,16 +1,16 @@
+# Add openpose to the path and import PoseEstimation
+import sys
+sys.path.append('./openpose')
+
 import json
 import os
 import activities
 import cv2
-import sys
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 import random
 import argparse
-# Add openpose to the path and import PoseEstimation
-sys.path.append('./openpose')
-# import PoseEstimation
 from openpose.common import estimate_pose, draw_humans
 from openpose.networks import get_network
 
@@ -25,62 +25,8 @@ stage_level = 6
 input_node = tf.placeholder(tf.float32, shape=(1, input_height, input_width, 3), name = 'image')
 net, _, last_layer = get_network(model, input_node, None)
 
-def _parse_function(serialized_example):
-
-    # Prepare feature list; read encoded JPG images as bytes
-    features = dict()
-    features["class_label"] = tf.FixedLenFeature((), tf.int64)
-    for i in range(activities.frames_per_step):
-        features["frames/{:02d}".format(i)] = tf.FixedLenFeature((), tf.string)
-
-    # Parse into tensors
-    parsed_features = tf.parse_single_example(serialized_example, features)
-
-    # Decode the encoded JPG images
-    images = []
-    for i in range(activities.frames_per_step):
-        images.append(tf.image.decode_jpeg(parsed_features["frames/{:02d}".format(i)]))
-
-    # Pack the frames into one big tensor of shape (N,H,W,3)
-    images = tf.stack(images)
-    label = tf.cast(parsed_features['class_label'], tf.int64)
-
-    return images, label
-
-
-# Read and decode tfrecords
-def read_and_decode(data_path, sess, crop_size, batch_size, gpu_num):
-
-    # Create a list of filenames and pass it to a queue
-    filename_queue = tf.train.string_input_producer([data_path])
-
-    # Define a reader and read the next record
-    reader = tf.TFRecordReader()
-    _, serialized_example = reader.read(filename_queue)
-
-    # Get images and label
-    frames, label = decode(serialized_example, sess)
-
-    # Reshape image data into the original shape
-    frames = tf.reshape(frames, [activities.frames_per_step, crop_size, crop_size, 3])
-
-    # Creates batches by randomly shuffling tensors
-    images, labels = tf.train.shuffle_batch([frames, label], batch_size=batch_size * gpu_num, capacity=1000,
-                                            min_after_dequeue=100)
-
-    return images, labels
-
 # Decode data and return images and label from tfrecords
-def decode(serialized_example, sess):
-    '''
-    Given a serialized example in which the frames are stored as
-    compressed JPG images 'frames/0001', 'frames/0002' etc., this
-    function samples SEQ_NUM_FRAMES from the frame list, decodes them from
-    JPG into a tensor and packs them to obtain a tensor of shape (N,H,W,3).
-    Returns the the tuple (frames, class_label (tf.int64)
-    :param serialized_example: serialized example from tf.data.TFRecordDataset
-    :return: tuple: (frames (tf.uint8), class_label (tf.int64)
-    '''
+def _parse_function(serialized_example):
 
     # Prepare feature list; read encoded JPG images as bytes
     features = dict()
@@ -155,6 +101,7 @@ def augment_list(list):
 
     return final_list
 
+# Create tfrecord from list of data
 def create_tf_records(file_list, dest, name):
 
     # Create a session for running Ops on the Graph.
@@ -165,7 +112,6 @@ def create_tf_records(file_list, dest, name):
 
     # Load pretrained weights
     s = '%dx%d' % (input_node.shape[2], input_node.shape[1])
-    # ckpts = 'openpose/models/trained/mobilenet_' + s + '/model-release'
     ckpts = 'model/mobilenet_' + s + '/model-release'
     variables = tf.contrib.slim.get_variables_to_restore()
     loader = tf.train.Saver(variables)
@@ -293,9 +239,6 @@ def get_frames(video_path, frames_per_step, segment, im_size, flip, sess):
         if flip:
             img = cv2.flip(img, 1)
 
-        # pose_frame = PoseEstimation.compute_pose_frame(img, sess)
-        # img = cv2.resize(pose_frame, dsize = (im_size, im_size), interpolation=cv2.INTER_CUBIC)
-        # frames[z, :, :, :] = img
         frames.append(img)
 
     return frames
@@ -311,12 +254,15 @@ def main(json, videos, dest):
 
     print('\nAugmenting train list with', activities.samples_number, 'samples per activity')
     train_list = augment_list(train_list)
+    print('Augmented train size:', len(train_list))
+
+    # Shuffle data
+    random.shuffle(train_list)
+    random.shuffle(test_list)
 
     # Uncomment to generate a small sample of tfrecords
-    train_list = train_list[:50]
-    test_list = test_list[:30]
-
-    print('Augmented train size:', len(train_list))
+    train_list = train_list[:20]
+    test_list = test_list[:20]
 
     if not os.path.exists(dest):
         os.makedirs(dest)

@@ -23,6 +23,7 @@ import c3d_model
 import numpy as np
 import cv2
 import activities
+import sys
 import tf_records
 from tqdm import tqdm
 
@@ -247,10 +248,10 @@ def run_training():
 
         for step in xrange(FLAGS.max_steps):
 
-            if step % 10 == 0:
+            if step % 10 == 0 or step == 1:
                 print("\nTraining")
             try:
-                with tqdm(desc="Epoch " + str(step), total=train_size) as pbar:
+                with tqdm(desc="Epoch " + str(step), total=train_size, file=sys.stdout) as pbar:
                     sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
                     while True:
                         train_images, train_labels = sess.run(next_element)
@@ -277,7 +278,7 @@ def run_training():
 
                 # Training
                 try:
-                    with tqdm(desc="Epoch " + str(step), total=train_size) as pbar:
+                    with tqdm(desc="Epoch " + str(step), total=train_size, file=sys.stdout) as pbar:
                         sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
                         while True:
                             train_images, train_labels = sess.run(next_element)
@@ -292,7 +293,7 @@ def run_training():
 
                 # Testing
                 try:
-                    with tqdm(desc="Epoch " + str(step), total=val_size) as pbar:
+                    with tqdm(desc="Epoch " + str(step), total=val_size, file=sys.stdout) as pbar:
                         sess.run(iterator.initializer, feed_dict={filename: [val_data_path]})
                         while True:
                             val_images, val_labels = sess.run(next_element)
