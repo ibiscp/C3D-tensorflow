@@ -249,9 +249,6 @@ def main(json, videos, dest):
     print('\nCollecting train and test list of files')
     train_list, test_list = create_files_list(json, videos)
 
-    print('\nTrain size:', len(train_list))
-    print('Test size: ', len(test_list))
-
     print('\nAugmenting train list with', activities.samples_number, 'samples per activity')
     train_list = augment_list(train_list)
     print('Augmented train size:', len(train_list))
@@ -261,8 +258,14 @@ def main(json, videos, dest):
     random.shuffle(test_list)
 
     # Uncomment to generate a small sample of tfrecords
-    train_list = train_list[:20]
-    test_list = test_list[:20]
+    # train_list = train_list[:20]
+    # test_list = test_list[:20]
+
+    # Make test_list divisible by 100
+    test_list = test_list[0:int(len(test_list)/100)*100]
+
+    print('\nTrain size:', len(train_list))
+    print('Test size: ', len(test_list))
 
     if not os.path.exists(dest):
         os.makedirs(dest)
