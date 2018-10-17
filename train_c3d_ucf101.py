@@ -31,8 +31,8 @@ from tqdm import tqdm
 flags = tf.app.flags
 gpu_num = 1
 #flags.DEFINE_float('learning_rate', 0.0, 'Initial learning rate.')
-flags.DEFINE_integer('max_steps', 5000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 10, 'Batch size.')
+flags.DEFINE_integer('max_steps', 10, 'Number of steps to run trainer.')
+flags.DEFINE_integer('batch_size', 50, 'Batch size.')
 FLAGS = flags.FLAGS
 MOVING_AVERAGE_DECAY = 0.9999
 model_save_dir = './models'
@@ -228,7 +228,7 @@ def run_training():
         filename = tf.placeholder(tf.string, shape=[None])
         dataset = tf.data.TFRecordDataset(filename)
         dataset = dataset.map(tf_records._parse_function)
-        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 100)
+        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 50)
         dataset = dataset.batch(FLAGS.batch_size)
 
         # Iterator
@@ -255,7 +255,7 @@ def run_training():
             if step % 10 == 1 or step == 0:
                 print("\nTraining")
             try:
-                with tqdm(desc="Epoch " + str(step), total=train_size, file=sys.stdout) as pbar:
+                with tqdm(desc="Epoch " + str(step) + "/" + str(FLAGS.max_steps), total=train_size, file=sys.stdout) as pbar:
                     sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
                     while True:
                         train_images, train_labels = sess.run(next_element)
@@ -282,7 +282,7 @@ def run_training():
 
                 # Training
                 try:
-                    with tqdm(desc="Epoch " + str(step), total=train_size, file=sys.stdout) as pbar:
+                    with tqdm(desc="Epoch " + str(step) + "/" + str(FLAGS.max_steps), total=train_size, file=sys.stdout) as pbar:
                         sess.run(iterator.initializer, feed_dict={filename: [train_data_path]})
                         while True:
                             train_images, train_labels = sess.run(next_element)
@@ -300,7 +300,7 @@ def run_training():
 
                 # Testing
                 try:
-                    with tqdm(desc="Epoch " + str(step), total=val_size, file=sys.stdout) as pbar:
+                    with tqdm(desc="Epoch " + str(step) + "/" + str(FLAGS.max_steps), total=val_size, file=sys.stdout) as pbar:
                         sess.run(iterator.initializer, feed_dict={filename: [val_data_path]})
                         while True:
                             val_images, val_labels = sess.run(next_element)
