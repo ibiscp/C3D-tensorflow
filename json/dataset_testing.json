@@ -4411,13 +4411,6 @@
             ]
         },
         {
-            "label": "l-arm:Elbow flexion",
-            "milliseconds": [
-                20450,
-                20957
-            ]
-        },
-        {
             "label": "l-leg:Knee flexion",
             "milliseconds": [
                 3687,
@@ -11091,13 +11084,6 @@
             "milliseconds": [
                 25352,
                 27353
-            ]
-        },
-        {
-            "label": "r-arm:Elbow extension",
-            "milliseconds": [
-                34352,
-                35601
             ]
         },
         {
