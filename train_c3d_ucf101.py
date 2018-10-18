@@ -32,7 +32,7 @@ flags = tf.app.flags
 gpu_num = 1
 #flags.DEFINE_float('learning_rate', 0.0, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 10, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 50, 'Batch size.')
+flags.DEFINE_integer('batch_size', 10, 'Batch size.')
 FLAGS = flags.FLAGS
 MOVING_AVERAGE_DECAY = 0.9999
 model_save_dir = './models'
@@ -246,9 +246,9 @@ def run_training():
         # Load the pretrained weights
         init_fn(sess)
 
-        # Create a coordinator and run all QueueRunner objects
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+        # # Create a coordinator and run all QueueRunner objects
+        # coord = tf.train.Coordinator()
+        # threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
         for step in xrange(FLAGS.max_steps):
 
@@ -261,7 +261,7 @@ def run_training():
                         train_images, train_labels = sess.run(next_element)
 
                         # Train last layer and finetunning
-                        if step < int(FLAGS.max_steps * 0.3):
+                        if step < int(FLAGS.max_steps * 0.3)*0:
                             sess.run(last_layer_train_op, feed_dict={images_placeholder: train_images,
                                                                      labels_placeholder: train_labels})
                         else:
@@ -273,7 +273,7 @@ def run_training():
                 pass
 
             # Save a checkpoint and evaluate the model periodically.
-            if step % 10 == 0 or (step + 1) == FLAGS.max_steps:
+            if step % 10 == 0 or (step + 1) == FLAGS.max_steps or True:
                 saver.save(sess, os.path.join(model_save_dir, 'c3d_ucf_model'), global_step=step)
                 acc_train = []
                 acc_val = []
@@ -316,11 +316,11 @@ def run_training():
                     test_writer.add_summary(summary, step)
                     print("\tTesting: " + "{:.5f}".format(acc_total))
 
-        # Stop the threads
-        coord.request_stop()
-
-        # Wait for threads to stop
-        coord.join(threads)
+        # # Stop the threads
+        # coord.request_stop()
+        #
+        # # Wait for threads to stop
+        # coord.join(threads)
         sess.close()
 
     print("\nDone")
