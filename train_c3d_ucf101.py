@@ -250,9 +250,9 @@ def run_training():
         # coord = tf.train.Coordinator()
         # threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
-        for step in xrange(FLAGS.max_steps):
+        for step in xrange(1, FLAGS.max_steps + 1):
 
-            if step % 10 == 1 or step == 0:
+            if step % 10 == 1:
                 print("\nTraining")
             try:
                 with tqdm(desc="Epoch " + str(step) + "/" + str(FLAGS.max_steps), total=train_size, file=sys.stdout) as pbar:
@@ -261,7 +261,7 @@ def run_training():
                         train_images, train_labels = sess.run(next_element)
 
                         # Train last layer and finetunning
-                        if step < int(FLAGS.max_steps * 0.3)*0:
+                        if step <= int(FLAGS.max_steps * 0.3):
                             sess.run(last_layer_train_op, feed_dict={images_placeholder: train_images,
                                                                      labels_placeholder: train_labels})
                         else:
