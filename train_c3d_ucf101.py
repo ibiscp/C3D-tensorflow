@@ -222,13 +222,13 @@ def run_training():
 
         # Path to train and test tfrecords
         train_data_path = 'tfrecords/train_0.tfrecords'
-        val_data_path = 'tfrecords/val_0.tfrecords'
+        val_data_path = 'tfrecords/test_0.tfrecords'
 
         # Dataset
         filename = tf.placeholder(tf.string, shape=[None])
         dataset = tf.data.TFRecordDataset(filename)
         dataset = dataset.map(tf_records._parse_function)
-        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 50)
+        dataset = dataset.shuffle(buffer_size=FLAGS.batch_size * 10)
         dataset = dataset.batch(FLAGS.batch_size)
 
         # Iterator
@@ -310,11 +310,11 @@ def run_training():
                             acc_val.append(acc)
                             pbar.update(len(val_labels))
                 except tf.errors.OutOfRangeError:
-                    acc_total = np.mean(acc_train)
+                    acc_total = np.mean(acc_val)
                     summary = tf.Summary()
-                    summary.value.add(tag="Validation Accuracy", simple_value=acc_total)
+                    summary.value.add(tag="Testing Accuracy", simple_value=acc_total)
                     test_writer.add_summary(summary, step)
-                    print("\tValidation: " + "{:.5f}".format(acc_total))
+                    print("\tTesting: " + "{:.5f}".format(acc_total))
 
         # Stop the threads
         coord.request_stop()

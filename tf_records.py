@@ -270,11 +270,11 @@ def main(json, videos, dest):
     if not os.path.exists(dest):
         os.makedirs(dest)
 
-    print('\nCreating tfrecords')
+    print('\nCreating tfrecords for training')
     create_tf_records(train_list, dest, 'train')
 
-    print('\nCreating tfrecords for validation dataset')
-    create_tf_records(test_list, dest, 'val')
+    print('\nCreating tfrecords for testing')
+    create_tf_records(test_list, dest, 'test')
 
 if __name__ == '__main__':
 
