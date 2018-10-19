@@ -24,7 +24,7 @@ import tensorflow as tf
 import activities
 
 # Define number of classes
-NUM_CLASSES = len(activities.activities_ids)
+NUM_CLASSES = len(activities.activities_tfrecords)
 
 # Images are cropped to (CROP_SIZE, CROP_SIZE)
 CROP_SIZE = 112
