@@ -1,8 +1,10 @@
-# C3D-tensorflow
+# Body movement recognition
 
-This repository uses the implementation of [C3D-tensorflow][1] and [Openpose][2] to recognize body moviment from the [Human3.6M Dataset][5].
+This repository uses the [C3D-tensorflow][1] and [Openpose][2] implementation to recognize body movement from the [Human3.6M Dataset][5].
 
 The folder `json` contains some of the videos segmentation for the training and testing set.
+
+## Commands
 
 Clone the repository
 ~~~~
@@ -21,11 +23,11 @@ $ mkdir model
 $ mkdir videos
 ~~~~
 
-Download the two models for the training and place inside the `model` folder created. For OpenPose, save only the folder `mobilenet_368x368` and its content.
+Download the two models for the training and place inside the `model` folder created. For Openpose, save only the folder `mobilenet_368x368` and its content.
 
 * [C3D][3]
 
-* [OpenPose][4]
+* [Openpose][4]
 
 Some of the videos can be found in the following link, download them without the folders and put in the folder `videos`
 
@@ -33,13 +35,38 @@ Some of the videos can be found in the following link, download them without the
 
 Generate the dataset:
 ~~~~
-$ python3 tf_records.py
+$ python3 tf_records.py --json=json/ --videos=videos/ --dest=tfrecords/
 ~~~~
 
 Train the network
 ~~~~
-$ python3 train_c3d_ucf101.py
+$ python3 train_c3d_ucf101.py --epochs=10 --batch_size=10 --evaluate_every=1 --use_pretrained_model=False
 ~~~~
+
+## Classes
+
+A total of 26 classes is used to train the model, these are divided in the following categories:
+
+* Head
+	* Turn right
+	* Turn left
+	* Raise
+	* Lean forward
+
+* Right/Left Arm
+	* Shoulder extension
+	* Shoulder adduction
+	* Shoulder flexion
+	* Shoulder abduction
+	* Elbow flexion
+	* Elbow extension
+	* Roll the wrist
+
+* Right/Left Leg
+	* Hip flexion
+	* Hip extension
+	* Knee flexion
+	* Knee extension
 
 [1]: https://github.com/hx173149/C3D-tensorflow
 [2]: https://github.com/evalsocket/tf-openpose/tree/36fc97b2bfebb8099cb141ab96e81d925b69477b
