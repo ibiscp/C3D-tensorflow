@@ -33,7 +33,7 @@ Some of the videos can be found in the following link, download them without the
 
 * [Human3.6M Dataset][6]
 
-Generate the dataset:
+Generate the dataset
 ~~~~
 $ python3 generate_tfrecords.py --json=json/ --videos=videos/ --dest=tfrecords/
 ~~~~
@@ -42,6 +42,14 @@ Train the network
 ~~~~
 $ python3 train.py --epochs=10 --batch_size=10 --evaluate_every=1 --use_pretrained_model=False
 ~~~~
+
+### Extra file
+
+Shows the list of activities and the frequency of activities chosen to the training
+~~~~
+$ python3 pose_list.py --json=json/
+~~~~
+
 
 ## Classes
 
