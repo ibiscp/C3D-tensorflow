@@ -1,4 +1,4 @@
-# Body movement recognition
+# Human Motion Prediction
 
 This repository uses the [C3D-tensorflow][1] and [Openpose][2] implementation to recognize body movement from the [Human3.6M Dataset][5].
 
