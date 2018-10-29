@@ -35,12 +35,12 @@ Some of the videos can be found in the following link, download them without the
 
 Generate the dataset:
 ~~~~
-$ python3 tf_records.py --json=json/ --videos=videos/ --dest=tfrecords/
+$ python3 generate_tfrecords.py --json=json/ --videos=videos/ --dest=tfrecords/
 ~~~~
 
 Train the network
 ~~~~
-$ python3 train_c3d_ucf101.py --epochs=10 --batch_size=10 --evaluate_every=1 --use_pretrained_model=False
+$ python3 train.py --epochs=10 --batch_size=10 --evaluate_every=1 --use_pretrained_model=False
 ~~~~
 
 ## Classes
