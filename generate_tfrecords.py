@@ -13,8 +13,9 @@ import random
 import argparse
 from openpose.common import estimate_pose, draw_humans
 from openpose.networks import get_network
+import c3d_model
 
-activities_list = activities.activities_tfrecords
+activities_list = activities.activities
 samples_number = activities.samples_number
 
 # Openpose variables
@@ -22,7 +23,7 @@ model = 'mobilenet'
 input_width = 368
 input_height = 368
 stage_level = 6
-input_node = tf.placeholder(tf.float32, shape=(1, input_height, input_width, 3), name = 'image')
+input_node = tf.placeholder(tf.float32, shape=(1, input_height, input_width, c3d_model.CHANNELS), name = 'image')
 net, _, last_layer = get_network(model, input_node, None)
 
 # Decode data and return images and label from tfrecords
@@ -31,7 +32,7 @@ def _parse_function(serialized_example):
     # Prepare feature list; read encoded JPG images as bytes
     features = dict()
     features["class_label"] = tf.FixedLenFeature((), tf.int64)
-    for i in range(activities.frames_per_step):
+    for i in range(c3d_model.NUM_FRAMES_PER_CLIP):
         features["frames/{:02d}".format(i)] = tf.FixedLenFeature((), tf.string)
 
     # Parse into tensors
@@ -39,7 +40,7 @@ def _parse_function(serialized_example):
 
     # Decode the encoded JPG images
     images = []
-    for i in range(activities.frames_per_step):
+    for i in range(c3d_model.NUM_FRAMES_PER_CLIP):
         images.append(tf.image.decode_jpeg(parsed_features["frames/{:02d}".format(i)]))
 
     # Pack the frames into one big tensor of shape (N,H,W,3)
@@ -137,11 +138,11 @@ def create_tf_records(file_list, dest, name):
                 file = sub_list[i]
 
                 # Get frames from the video
-                frames = get_frames(file[1], activities.frames_per_step, file[2], activities.im_size, file[3], sess)
+                frames = get_frames(file[1], c3d_model.NUM_FRAMES_PER_CLIP, file[2], c3d_model.CROP_SIZE, file[3], sess)
                 label = activities_list[file[0]]
 
                 # Generate poses for the frames
-                poses = np.zeros(shape=(activities.frames_per_step, activities.im_size, activities.im_size, 3), dtype=float)
+                poses = np.zeros(shape=(c3d_model.NUM_FRAMES_PER_CLIP, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE, c3d_model.CROP_SIZE), dtype=float)
 
                 try:
                     for z in range(len(frames)):
@@ -159,7 +160,7 @@ def create_tf_records(file_list, dest, name):
 
                         # cv2.imwrite('teste.jpg', pose_image)
 
-                        img = cv2.resize(pose_image, dsize=(activities.im_size, activities.im_size), interpolation=cv2.INTER_CUBIC)
+                        img = cv2.resize(pose_image, dsize=(c3d_model.CROP_SIZE, c3d_model.CROP_SIZE), interpolation=cv2.INTER_CUBIC)
                         poses[z, :, :, :] = img
 
                     # Create the dictionary with the data
@@ -249,7 +250,7 @@ def main(json, videos, dest):
     print('\nCollecting train and test list of files')
     train_list, test_list = create_files_list(json, videos)
 
-    print('\nAugmenting train list with', activities.samples_number, 'samples per activity')
+    print('\nAugmenting train list with', samples_number, 'samples per activity')
     train_list = augment_list(train_list)
     print('Augmented train size:', len(train_list))
 

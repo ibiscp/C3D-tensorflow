@@ -1,10 +1,11 @@
 import json
 import os
 import activities
+import argparse
 
 # Collects all the json files from the folder and assign a
 # unique ID for each one
-def generate_activity_list(json_dir='json/'):
+def generate_activity_list(json_dir):
     files = os.listdir(json_dir)
 
     activities_list = []
@@ -20,18 +21,15 @@ def generate_activity_list(json_dir='json/'):
 
     activities_ids = dict(map(reversed, enumerate(activities_list)))
 
-    # print('Activity list size: ', len(activities_list))
-    # print('Activities IDs: ', activities_ids)
-
     return activities_ids
 
 # Show the frequency of each activity
-def show_activities_frequency(json_dir='json/'):
+def show_activities_frequency(json_dir):
     files = os.listdir(json_dir)
 
     activities_dic = {}
 
-    activities_list = activities.activities_tfrecords
+    activities_list = activities.activities
 
     for f in files:
         with open(json_dir + f) as file:
@@ -46,3 +44,24 @@ def show_activities_frequency(json_dir='json/'):
                             activities_dic[activity['label']] += 1
 
     return activities_dic
+
+# Main function
+def main(json):
+
+    print('\nTotal list of activities\n')
+    activities = generate_activity_list(json)
+    for i in activities:
+        print(i)
+
+    print('\nFrequency of each activity chosen to training\n')
+    activities = show_activities_frequency(json)
+    for i in activities:
+        print(i, ': ', activities[i])
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Print ')
+    parser.add_argument('--json', dest='json', type=str, default='json/', help='path of the json files')
+    args = parser.parse_args()
+
+    main(args.json)
