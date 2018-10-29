@@ -328,7 +328,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=30, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=10, help='batch size')
     parser.add_argument("--evaluate_every", type=int, default=1, help="number of epochs to evaluate model")
-    parser.add_argument("--use_pretrained_model", type=lambda x:bool(distutils.util.strtobool(x)), default=False, help="use pretrained model of train from scratch (default: False)")
+    parser.add_argument("--use_pretrained_model", type=lambda x:bool(distutils.util.strtobool(x)), default=True, help="use pretrained model of train from scratch (default: False)")
     args = parser.parse_args()
 
     main(args.epochs, args.batch_size, args.evaluate_every, args.use_pretrained_model)
