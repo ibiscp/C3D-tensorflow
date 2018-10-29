@@ -1,0 +1,158 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{siunitx}
+
+\usepackage{pgfplots}
+\usepackage{filecontents}
+
+\graphicspath{ {images/} }
+
+%-------------------------------------------------------------------------------
+%	TITLE SECTION
+%-------------------------------------------------------------------------------
+
+\newcommand{\horrule}[1]{\rule{\linewidth}{#1}} % Create horizontal rule command with 1 argument of height
+
+\title{
+\normalfont \normalsize
+\textsc{Sapienza University of Rome} \\ [25pt] % Your university, school and/or department name(s)
+\horrule{0.5pt} \\[0.4cm] % Thin top horizontal rule
+\LARGE Convolutional 3D \\ % The assignment title
+\large Body Movement Recognition \\
+\horrule{2pt} \\[0.5cm] % Thick bottom horizontal rule
+}
+
+\author{Ibis Prevedello, Jean-Pierre Richa} % Your name
+
+\date{\normalsize\today} % Today's date or a custom date
+
+\begin{document}
+\sloppy % avoid to make words to go out of margin
+
+\maketitle % Print the title
+
+%-------------------------------------------------------------------------------
+
+
+\section{Introduction}
+
+The goal of this project is to train a model based on Convolutional 3D and Openpose in Tensorflow to recognize body movements from videos. In order to execute this task, first the person's pose is recognized using Openpose and then it is used to recognize the body member movement.
+
+The dataset used for the training is a subset of the Human3.6M Dataset, these videos were first segmented by the course students and divided in a total of 52 classes.
+
+In order to minimize the training time, the dataset was first converted to tfrecords and then used for training the network. All this process was executed using Google Compute Engine instance running a Tesla K80 GPU.
+
+%-------------------------------------------------------------------------------
+
+\section{Dataset Augmentation}
+
+The dataset segmentation, composed of 52 classes, was given in two json files, one for the training and one for the test. Analyzing the number of samples for each category was noticed a big difference from class to class.
+
+In order to have a balanced dataset, was decided to extract a subset of 26 classes with the highest number of samples, resulting in the following list:
+
+\begin{itemize}
+	\item Head
+		\begin{itemize}
+			\item Turn right
+			\item Turn left
+			\item Raise
+			\item Lean forward
+		\end{itemize}
+	\item Right/Left Arm
+		\begin{itemize}
+			\item Shoulder extension
+			\item Shoulder adduction
+			\item Shoulder flexion
+			\item Shoulder abduction
+			\item Elbow flexion
+			\item Elbow extension
+			\item Roll the wrist
+		\end{itemize}
+	\item Right/Left Leg
+		\begin{itemize}
+			\item Hip flexion
+			\item Hip extension
+			\item Knee flexion
+			\item Knee extension
+		\end{itemize}
+\end{itemize}
+
+For the training dataset, after having a subset of the categories, it needed to be augmented, in order to achieve that the idea was to flip the images from the arm and leg classes and add them to the opposite member class. For example, if we flip the right shoulder extension we obtain a left shoulder extension.
+
+Having that, we obtained a total of 400 samples for each class, with a total of 10.400 samples for the training set and 1.900 samples for the testing set.
+
+%-------------------------------------------------------------------------------
+
+\section{Network Training}
+
+The network was trained in two different ways. The first was to transfer the learning from an already trained network used to recognize sports activities to our task, an the second one to train the network from scratch. Both networks were trained for 10 epochs and using a batch of 10 samples.
+
+Using transfer learning, the last layer was deleted and added a new one with the number of classes of our task. During the first 3 epochs only the last layer weights were updated with a learning rate of \num{1e-3} and after that the whole network was fine tuned with a learning rate of \num{1e-4}.
+
+For the second approach no pre-trained model was used and the whole network was trained using a learning rate of \num{1e-3}.
+
+The training and the testing set was evaluated after each epoch and it can be seen using Tensorboard.
+
+%-------------------------------------------------------------------------------
+
+\section{Results}
+
+It was decided to train both networks for only 10 epochs because it is enough to see how the accuracy is improving over time, allowing to compare the two strategies (transfer learning and training from scratch) and also because the dataset is quite extensive and its training takes a long time, and because it is being trained on the cloud and it is payed by hour.
+
+The data presented here was saved during the trained and collected from Tensorboard.
+
+%%%% PRESENT THE RESULTS HERE %%%%
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            title={Test Accuracy on Masks},
+            xlabel={Epoch},
+            ylabel={Accuracy},
+            xmin=1, xmax=10,
+            ymin=0.0, ymax=0.15,
+            %xtick={1,10,20,30,40,50},
+            %ytick={0.25,0.40,0.55},
+            legend pos=south east]
+
+	        \addplot +[color=blue] table [x=Step, y=Value, col sep=comma] {data.csv};
+            	\addlegendentry{Training}
+        	\addplot +[color=red] table [x=Step, y=Value, col sep=comma] {data.csv};
+            	\addlegendentry{Testing}            
+        
+        \end{axis}
+    \end{tikzpicture}
+    \caption{The plot shows the how the test accuracy
+        varies for the dataset Masks changing the number
+        of hidden nodes in the LSTM.}
+    \label{fig:test-accuracy-masks}
+\end{figure}
+
+%-------------------------------------------------------------------------------
+
+\section{Implementation}
+
+The project has been implemented in Python using Tensorflow. Below, the list of Python files implemented for the project with a brief description of their behavior.
+
+\begin{itemize}
+    \item \textbf{generate\_tfrecords.py:} generating the tfrecord files used for the training and evaluation of the network.
+    \item \textbf{train.py:} train the network specifying parameters and the dataset.
+\end{itemize}
+
+%-------------------------------------------------------------------------------
+
+\section{Conclusion}
+
+
+%-------------------------------------------------------------------------------
+
+\clearpage
+\bibliography{bibliography}
+\bibliographystyle{ieeetr}
+
+%-------------------------------------------------------------------------------
+
+\end{document}
