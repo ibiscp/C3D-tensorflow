@@ -109,26 +109,44 @@ The data presented here was saved during the trained and collected from Tensorbo
     \centering
     \begin{tikzpicture}
         \begin{axis}[
-            title={Test Accuracy on Masks},
+            title={Training Accuracy},
             xlabel={Epoch},
             ylabel={Accuracy},
-            xmin=1, xmax=10,
-            ymin=0.0, ymax=0.15,
+            xmin=1, xmax=30,
+            ymin=0.0, ymax=1,
             %xtick={1,10,20,30,40,50},
             %ytick={0.25,0.40,0.55},
-            legend pos=south east]
+            legend pos=north west]
 
-	        \addplot +[color=blue] table [x=Step, y=Value, col sep=comma] {data.csv};
-            	\addlegendentry{Training}
-        	\addplot +[color=red] table [x=Step, y=Value, col sep=comma] {data.csv};
+	        \addplot [color=blue,mark=o] table [x=Step, y=Training, col sep=comma] {data.csv};
+            	\addlegendentry{Training}          
+        
+        \end{axis}
+    \end{tikzpicture}
+    \caption{The plot shows the how the training accuracy improves over epoch.}
+    \label{fig:training-accuracy}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            title={Testing Accuracy},
+            xlabel={Epoch},
+            ylabel={Accuracy},
+            xmin=1, xmax=30,
+            ymin=0.0, ymax=0.1,
+            %xtick={1,10,20,30,40,50},
+            %ytick={0.25,0.40,0.55},
+            legend pos=north west]
+
+        	\addplot [color=red,mark=o] table [x=Step, y=Testing, col sep=comma] {data.csv};
             	\addlegendentry{Testing}            
         
         \end{axis}
     \end{tikzpicture}
-    \caption{The plot shows the how the test accuracy
-        varies for the dataset Masks changing the number
-        of hidden nodes in the LSTM.}
-    \label{fig:test-accuracy-masks}
+    \caption{The plot shows the how the testing accuracy improves over epoch.}
+    \label{fig:testing-accuracy}
 \end{figure}
 
 %-------------------------------------------------------------------------------
