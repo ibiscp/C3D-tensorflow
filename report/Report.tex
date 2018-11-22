@@ -4,6 +4,8 @@
 \usepackage{hyperref}
 \usepackage{siunitx}
 
+\usepackage[super]{nth}
+
 \usepackage{pgfplots}
 \usepackage{filecontents}
 
@@ -38,19 +40,20 @@
 
 \section{Introduction}
 
-The goal of this project is to train a model based on Convolutional 3D and Openpose in Tensorflow to recognize body movements from videos. In order to execute this task, first the person's pose is recognized using Openpose and then it is used to recognize the body member movement.
+The goal of this project was to train a model based on Convolutional 3D to recognize the human body movements in videos. To execute this task, the C3D network was used in combination with Openpose, which are coded using tensonflow. Openpose network was essential here, to extract the body pose, and apply it to the frame extracted from the video, then to train the C3D network to recognize the body motion. 
 
-The dataset used for the training is a subset of the Human3.6M Dataset, these videos were first segmented by the course students and divided in a total of 52 classes.
+The dataset used for the training was a subset of the Human 3.6M collection, which were taken in a local laboratory, and then labeled by the students who were taking the course of elective in Artificial Intelligence, which is a computer vision based elective course. The labeling was done using a json file, which was later split into training and testing set. In order to have a well balanced dataset for all of the classes, half of the classes that has the biggest amount of labels were considered for the training. 
 
-In order to minimize the training time, the dataset was first converted to tfrecords and then used for training the network. All this process was executed using Google Compute Engine instance running a Tesla K80 GPU.
+The training was done using a Google Compute Engine instance running a Tesla K80 GPU.
+
 
 %-------------------------------------------------------------------------------
 
 \section{Dataset Augmentation}
 
-The dataset segmentation, composed of 52 classes, was given in two json files, one for the training and one for the test. Analyzing the number of samples for each category was noticed a big difference from class to class.
+The labeled dataset contained in the json file was split into test set and training set, which are composed of 52 classes. Due to the difference of labeled samples between the classes, only those who had the highest numbers were considered for the training. 
 
-In order to have a balanced dataset, was decided to extract a subset of 26 classes with the highest number of samples, resulting in the following list:
+A total of 26 classes were taken into account to train the model, because the limited number of samples of the other classes provided a big chance of occur overfitting, and reduce generalization to other data. Check the \textbf{Classes section} for details about the used labels.\newline
 
 \begin{itemize}
 	\item Head
@@ -79,31 +82,57 @@ In order to have a balanced dataset, was decided to extract a subset of 26 class
 		\end{itemize}
 \end{itemize}
 
-For the training dataset, after having a subset of the categories, it needed to be augmented, in order to achieve that the idea was to flip the images from the arm and leg classes and add them to the opposite member class. For example, if we flip the right shoulder extension we obtain a left shoulder extension.
+Since the data used was also not enough for the training to generalize, augmenting the training set was necessary. In order to maintain data consistency the following approach was applied; the idea was to flip the images labeled as arm and leg and add them to the opposite class, so for example the right shoulder extension becomes left shoulder extension and vice-versa. After performing these manipulations, the final dataset was extended to 400 samples for each class, with a total of 10,400 samples for the training set and 1900 samples for the test set, which enlarged the original dataset by approximately the third.
 
-Having that, we obtained a total of 400 samples for each class, with a total of 10.400 samples for the training set and 1.900 samples for the testing set.
+%-------------------------------------------------------------------------------
+
+\section{Body Movement Recognition}
+
+Body movements are too complex to be recognized, because when a person moves his/her head or any body part, only small variations can be seen in the features extracted. The main problem is that not only the specific part that the person intended to move is affected, but also other parts of the body, and this holds especially if the classifier should predict the movements in the real life, which is the case in this project. Even if the movement is small, it will affect the features extracted from other areas also, and each time with a different intensity, which makes it even harder to predict which part should be the main focus. 
+
+For these reasons, it was decided to use the help of openpose to extract a map of the current pose, which gives an accurate pose estimation of the body state, that should help the Convolutional 3D network to predict the body movement more accurately. 
+
+After estimating the pose of the body using the pre-trained model of openpose, the extracted maps were applied to the corresponding frames and then fed into the Convolutional 3D network using batches of 10 samples.
+
 
 %-------------------------------------------------------------------------------
 
 \section{Network Training}
 
-The network was trained in two different ways. The first was to transfer the learning from an already trained network used to recognize sports activities to our task, an the second one to train the network from scratch. Both networks were trained for 10 epochs and using a batch of 10 samples.
+The network was trained using transfer learning, which was achieved by employing the weights of the pre-trained model \textbf{sports1m finetuning ucf101}, used to classify sports activities. It was not easy to decide on a number of epochs that's enough to get a good accuracy, so after some testing it was discovered that the best to prevent overfitting and get the highest accuracy possible was 30 epochs, with a batch size of 10 samples.
 
-Using transfer learning, the last layer was deleted and added a new one with the number of classes of our task. During the first 3 epochs only the last layer weights were updated with a learning rate of \num{1e-3} and after that the whole network was fine tuned with a learning rate of \num{1e-4}.
+Following the transfer learning approach, the last layer was deleted in order to exclude the final classification results of the previous model, and to be able to include the new total number of classes for this specific task. The training consisted of 2 phases, the first one was accomplished through \nth{1} training only the last layer weights for 30\% of the total number of epochs with a learning rate of \num[math-rm=\mathbf]{1e-3}, \nth{2} training the weights of the whole network with a learning rate of \num[math-rm=\mathbf]{1e-4}.
 
-For the second approach no pre-trained model was used and the whole network was trained using a learning rate of \num{1e-3}.
+After each epoch, the updated weights were used to get the accuracy of the prediction made on the training set and the test set. 
 
-The training and the testing set was evaluated after each epoch and it can be seen using Tensorboard.
+Two different loss functions were used to train the network and calculate the loss:
+\newpage
+\begin{itemize}
+\item \textbf{tf.nn.l2\_loss:} the Least Squares Errors function, which was used inside the fully connected hidden layers, and its mathematical representation can be seen \textbf{below}
+\end{itemize}
+
+\begin{equation} 
+L2LossFunction =\sum_{i=1, n}(y-\hat{y})^{2}
+\end{equation} 
+
+\begin{itemize}
+\item \textbf{tf.nn.softmax\_cross\_entropy\_with\_logits:} the Cross Entropy loss function, which was used for calculating the loss on the output layer, then its gradient was calculated and back propagated through the network to update the weights. Its mathematical representation can be seen \textbf{below}.
+\end{itemize}
+
+\begin{equation} 
+H(y,\hat{y})=-\sum_{ i }(yi \ log \ \hat{yi})
+\end{equation} 
+
+A summary that included the accuracy of training and testing set was evaluated after each epoch and can be visualized using Tensorboard.
 
 %-------------------------------------------------------------------------------
 
 \section{Results}
 
-It was decided to train both networks for only 10 epochs because it is enough to see how the accuracy is improving over time, allowing to compare the two strategies (transfer learning and training from scratch) and also because the dataset is quite extensive and its training takes a long time, and because it is being trained on the cloud and it is payed by hour.
 
-The data presented here was saved during the trained and collected from Tensorboard.
+The network was trained for 30 epochs only, because it was enough to see how the accuracy got better with each epoch passed. It was best to stop the training after this number of epochs also, because the dataset is quite large, which makes the training take more time to improve the accuracy, and it wasn't possible to keep on training for more time, this was due to the fact that the training was done on the cloud and it's paid by hour.
 
-%%%% PRESENT THE RESULTS HERE %%%%
+After each epoch the accuracy of the model was saved using the summary collector, this way the accuracy can be checked using Tensorboard, which also gives the chance to extract the plot that is easily visualized \textbf{below}.
 
 \begin{figure}
     \centering
@@ -123,7 +152,7 @@ The data presented here was saved during the trained and collected from Tensorbo
         
         \end{axis}
     \end{tikzpicture}
-    \caption{The plot shows the how the training accuracy improves over epoch.}
+    \caption{The plot shows how the training accuracy improves after each epoch.}
     \label{fig:training-accuracy}
 \end{figure}
 
@@ -145,9 +174,10 @@ The data presented here was saved during the trained and collected from Tensorbo
         
         \end{axis}
     \end{tikzpicture}
-    \caption{The plot shows the how the testing accuracy improves over epoch.}
+    \caption{The plot shows how the testing accuracy improves after each epoch.}
     \label{fig:testing-accuracy}
 \end{figure}
+\newpage
 
 %-------------------------------------------------------------------------------
 
@@ -171,7 +201,7 @@ Extra file:
 %-------------------------------------------------------------------------------
 
 \section{Conclusion}
-
+As already shown in the report, the accuracy achieved on the training set is 80\%, and on the testing set was 8\%, this is a sign of overfitting, even though all the steps to prevent this behavior were taken. It is obvious that the accuracy on the evaluation set was increasing, but there are a lot of obstacles that kept the network from achieving better results. The training set was not enough for the network to generalize to other samples, because with this number of classes, a wider set was needed in order to get a higher accuracy. Moreover, the improvement in the accuracy over the epochs was good with respect to the number of classes to be classified, so if the network can be trained for more epochs, the accuracy on both sets would be higher.
 
 %-------------------------------------------------------------------------------
 
